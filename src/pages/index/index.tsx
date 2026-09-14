@@ -242,7 +242,9 @@ export default function IndexPage() {
                   className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary bg-muted px-4 py-12"
                 >
                   <Camera size={40} className="text-primary" color="#0f766e" />
-                  <Text className="mt-3 block text-sm font-medium">点击选择单词图片</Text>
+                  <Text className="mt-3 block text-sm font-medium">
+                    {imagePath ? '已选择图片，点击可更换' : '点击选择单词图片'}
+                  </Text>
                   <Text className="mt-1 block text-xs text-muted-foreground">支持 JPG / PNG</Text>
                   {imagePath ? (
                     <Image
@@ -305,10 +307,24 @@ export default function IndexPage() {
           </Card>
 
           <View className="mt-5">
-            {step === 'upload' && (
-              <Button className="w-full" size="lg" onClick={handleChooseImage} disabled={!!imagePath}>
+            {step === 'upload' && !imagePath && (
+              <Button className="w-full" size="lg" onClick={handleChooseImage}>
                 选择图片
               </Button>
+            )}
+            {step === 'upload' && imagePath && (
+              <>
+                <Button className="w-full" size="lg" onClick={handleRecognize}>
+                  识别单词
+                </Button>
+                <Button
+                  className="mt-3 w-full"
+                  variant="outline"
+                  onClick={handleChooseImage}
+                >
+                  重新选择图片
+                </Button>
+              </>
             )}
             {step === 'recognizing' && (
               <Button className="w-full" size="lg">
