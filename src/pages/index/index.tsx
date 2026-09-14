@@ -1,33 +1,459 @@
-import { View, Text, Image } from '@tarojs/components';
-import { useLoad } from '@tarojs/taro';
+import { useCallback, useEffect, useState } from 'react';
+import Taro from '@tarojs/taro';
+import { Image, Text, View } from '@tarojs/components';
+import { Camera, CircleCheck, CircleX, Coins, RotateCcw, ScanLine } from 'lucide-react-taro';
 import { Network } from '@/network';
-import './index.css';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 
-/**
- * 默认首页，直接覆盖本页内容
- */
-const IndexPage = () => {
-  useLoad(async () => {
-    const res = await Network.request({ url: '/api/hello' });
-    console.log(res.data);
-  });
+interface WordItem {
+  en: string;
+  zh: string;
+}
+
+interface ApiEnvelope<T> {
+  status: string;
+  message?: string;
+  data?: T;
+}
+
+type Step = 'upload' | 'recognizing' | 'review' | 'quiz' | 'result';
+
+const POINTS_STORAGE_KEY = 'dictation_device_id';
+
+function genDeviceId(): string {
+  const chars = 'abcdef0123456789';
+  let id = '';
+  for (let i = 0; i < 32; i++) id += chars[Math.floor(Math.random() * 16)];
+  return `dev-${id}`;
+}
+
+function getDeviceId(): string {
+  try {
+    const existing = Taro.getStorageSync(POINTS_STORAGE_KEY);
+    if (existing) return existing;
+    const id = genDeviceId();
+    Taro.setStorageSync(POINTS_STORAGE_KEY, id);
+    return id;
+  } catch {
+    return genDeviceId();
+  }
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+export default function IndexPage() {
+  const [step, setStep] = useState<Step>('upload');
+  const [imagePath, setImagePath] = useState('');
+  const [words, setWords] = useState<WordItem[]>([]);
+  const [mode, setMode] = useState<'zh2en' | 'en2zh'>('zh2en');
+  const [quizOrder, setQuizOrder] = useState<number[]>([]);
+  const [quizIndex, setQuizIndex] = useState(0);
+  const [sessionCorrect, setSessionCorrect] = useState(0);
+  const [sessionEarned, setSessionEarned] = useState(0);
+  const [answer, setAnswer] = useState('');
+  const [feedback, setFeedback] = useState<{
+    correct: boolean;
+    reference: string;
+    pointsAwarded: number;
+  } | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  const [points, setPoints] = useState(0);
+  const [deviceId] = useState<string>(() => getDeviceId());
+
+  const refreshPoints = useCallback(async () => {
+    try {
+      const res = await Network.request({ url: `/api/dictation/points?deviceId=${deviceId}` });
+      console.log('points body:', res.data);
+      const body = res.data as ApiEnvelope<{ totalPoints: number }>;
+      setPoints(body?.data?.totalPoints ?? 0);
+    } catch (e) {
+      console.error('load points failed', e);
+    }
+  }, [deviceId]);
+
+  useEffect(() => {
+    refreshPoints();
+  }, [refreshPoints]);
+
+  const handleChooseImage = async () => {
+    try {
+      const res = await Taro.chooseImage({ count: 1, sizeType: ['compressed'] });
+      setImagePath(res.tempFilePaths[0]);
+    } catch (e) {
+      console.error('choose image cancelled/error', e);
+    }
+  };
+
+  const handleRecognize = async () => {
+    if (!imagePath) return;
+    setStep('recognizing');
+    try {
+      const res = await Network.uploadFile({
+        url: '/api/dictation/recognize',
+        filePath: imagePath,
+        name: 'file',
+      });
+      console.log('recognize body:', res.data);
+      const body = res.data as unknown as ApiEnvelope<{ words: WordItem[] }>;
+      const recognized: WordItem[] = body?.data?.words ?? [];
+      if (!recognized.length) {
+        Taro.showToast({ title: '未识别到单词，请重试', icon: 'none' });
+        setStep('upload');
+        return;
+      }
+      setWords(recognized);
+      setStep('review');
+    } catch (e) {
+      console.error('recognize error', e);
+      Taro.showToast({ title: '识别失败，请稍后重试', icon: 'none' });
+      setStep('upload');
+    }
+  };
+
+  const startQuiz = () => {
+    const order = shuffle(words.map((_, i) => i));
+    setQuizOrder(order);
+    setQuizIndex(0);
+    setSessionCorrect(0);
+    setSessionEarned(0);
+    setAnswer('');
+    setFeedback(null);
+    setStep('quiz');
+  };
+
+  const currentWord = quizOrder.length ? words[quizOrder[quizIndex]] : null;
+
+  const handleSubmit = async () => {
+    if (!currentWord || !answer.trim() || checking) return;
+    setChecking(true);
+    try {
+      const res = await Network.request({
+        url: '/api/dictation/check',
+        method: 'POST',
+        data: {
+          deviceId,
+          mode,
+          en: currentWord.en,
+          zh: currentWord.zh,
+          answer: answer.trim(),
+        },
+      });
+      console.log('check body:', res.data);
+      const d = (
+        res.data as ApiEnvelope<{
+          correct: boolean;
+          reference: string;
+          pointsAwarded: number;
+          totalPoints: number;
+        }>
+      )?.data;
+      setFeedback({
+        correct: !!d?.correct,
+        reference: d?.reference ?? '',
+        pointsAwarded: d?.pointsAwarded ?? 0,
+      });
+      if (d?.correct) {
+        setSessionCorrect((c) => c + 1);
+        setSessionEarned((e) => e + (d?.pointsAwarded ?? 0));
+      }
+      if (typeof d?.totalPoints === 'number') setPoints(d.totalPoints);
+      else refreshPoints();
+    } catch (e) {
+      console.error('check error', e);
+      Taro.showToast({ title: '提交失败，请重试', icon: 'none' });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const nextQuestion = () => {
+    setAnswer('');
+    setFeedback(null);
+    if (quizIndex + 1 >= quizOrder.length) {
+      setStep('result');
+    } else {
+      setQuizIndex((i) => i + 1);
+    }
+  };
+
+  const total = quizOrder.length;
+  const progressValue = quizOrder.length ? Math.round(((quizIndex + (feedback ? 1 : 0)) / total) * 100) : 0;
 
   return (
-    <View className="w-full h-full flex flex-col justify-center items-center gap-1">
-      <Image
-        className="w-32 h-28"
-        src="https://lf-coze-web-cdn.coze.cn/obj/eden-cn/lm-lgvj/ljhwZthlaukjlkulzlp/coze-coding/icon/coze-coding.gif"
-      />
-      <View className="self-stretch flex flex-col justify-start items-start gap-2">
-        <Text className="self-stretch text-center justify-start text-base-accent-foreground text-base font-bold">
-          应用开发中
-        </Text>
-        <Text className="self-stretch text-center justify-start text-base-muted-foreground text-sm font-normal">
-          请稍候，界面即将呈现
-        </Text>
+    <View className="min-h-screen bg-background px-4 py-6">
+      {/* 顶部积分栏 */}
+      <View className="mb-5 flex flex-row items-center justify-between">
+        <View className="flex flex-row items-center gap-2">
+          <ScanLine size={22} className="text-primary" color="#0f766e" />
+          <Text className="block text-lg font-bold text-primary">随拍默写</Text>
+        </View>
+        <Badge variant="secondary" className="gap-1 rounded-full px-3 py-1">
+          <Coins size={14} color="#b45309" />
+          <Text className="text-xs font-semibold text-amber-700">{points} 积分</Text>
+        </Badge>
       </View>
+
+      {/* 上传 / 识别 / 浏览单词 */}
+      {(step === 'upload' || step === 'recognizing' || step === 'review') && (
+        <View>
+          <Card className="mb-5 border-none bg-primary text-primary-foreground">
+            <CardContent className="p-6">
+              <Text className="block text-xl font-bold leading-relaxed">
+                拍下单词，随拍随默
+              </Text>
+              <Text className="mt-2 block text-sm opacity-90 leading-relaxed">
+                上传一张英语单词图片，识别后即可开始中译英 / 英译中默写，答对每题获得积分奖励。
+              </Text>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-5">
+              {step === 'review' && imagePath ? (
+                <View className="mb-4 flex flex-row items-center gap-4">
+                  <Image
+                    src={imagePath}
+                    mode="aspectFill"
+                    className="h-20 w-20 rounded-xl bg-gray-100"
+                  />
+                  <View className="flex-1">
+                    <Text className="block text-base font-semibold">已识别单词</Text>
+                    <Text className="block text-sm text-muted-foreground">
+                      共 {words.length} 个，点击下方开始默写
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View
+                  onClick={handleChooseImage}
+                  hoverClass="opacity-80"
+                  className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary bg-muted px-4 py-12"
+                >
+                  <Camera size={40} className="text-primary" color="#0f766e" />
+                  <Text className="mt-3 block text-sm font-medium">点击选择单词图片</Text>
+                  <Text className="mt-1 block text-xs text-muted-foreground">支持 JPG / PNG</Text>
+                  {imagePath ? (
+                    <Image
+                      src={imagePath}
+                      mode="aspectFill"
+                      className="mt-4 h-40 w-40 rounded-xl bg-gray-200"
+                    />
+                  ) : null}
+                </View>
+              )}
+
+              {step === 'recognizing' && (
+                <View className="mt-4 flex flex-col items-center py-4">
+                  <Text className="block text-sm text-muted-foreground">AI 正在识别图片中的单词…</Text>
+                </View>
+              )}
+
+              {step === 'review' && (
+                <View className="mt-2">
+                  <Text className="mb-2 block text-sm font-semibold text-foreground">识别结果</Text>
+                  <View className="flex flex-col gap-2">
+                    {words.map((w, idx) => (
+                      <View
+                        key={idx}
+                        className="flex flex-row items-center justify-between rounded-lg bg-muted px-3 py-2"
+                      >
+                        <Text className="block text-sm font-semibold">{w.en}</Text>
+                        <Text className="block text-sm text-muted-foreground">{w.zh}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {step === 'review' && (
+                <View className="mt-5">
+                  <Text className="mb-2 block text-sm font-semibold">默写模式</Text>
+                  <View className="flex flex-row gap-2">
+                    <Button
+                      className="flex-1"
+                      variant={mode === 'zh2en' ? 'default' : 'secondary'}
+                      onClick={() => setMode('zh2en')}
+                    >
+                      中译英
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      variant={mode === 'en2zh' ? 'default' : 'secondary'}
+                      onClick={() => setMode('en2zh')}
+                    >
+                      英译中
+                    </Button>
+                  </View>
+                  <Button className="mt-4 w-full" size="lg" onClick={startQuiz}>
+                    开始默写
+                  </Button>
+                </View>
+              )}
+            </CardContent>
+          </Card>
+
+          <View className="mt-5">
+            {step === 'upload' && (
+              <Button className="w-full" size="lg" onClick={handleChooseImage} disabled={!!imagePath}>
+                选择图片
+              </Button>
+            )}
+            {step === 'recognizing' && (
+              <Button className="w-full" size="lg">
+                <Text>正在识别…</Text>
+              </Button>
+            )}
+            {step === 'review' && imagePath && (
+              <Button className="w-full" variant="outline" onClick={handleRecognize}>
+                重新识别
+              </Button>
+            )}
+            {step === 'review' && imagePath && (
+              <Button className="mt-3 w-full" variant="ghost" onClick={() => { setStep('upload'); setImagePath(''); setWords([]); }}>
+                换一张图片
+              </Button>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* 默写答题 */}
+      {step === 'quiz' && currentWord && (
+        <View>
+          <Card className="mb-4">
+            <CardContent className="p-5">
+              <View className="mb-4 flex flex-row items-center justify-between">
+                <Text className="block text-sm font-semibold">
+                  第 {quizIndex + 1} / {total} 题
+                </Text>
+                <Badge variant="secondary">
+                  <Coins size={12} color="#b45309" />
+                  <Text className="text-xs font-semibold text-amber-700">+10 / 题</Text>
+                </Badge>
+              </View>
+              <Progress value={progressValue} className="mb-5" />
+
+              <View className="rounded-xl bg-muted p-5 text-center">
+                {mode === 'zh2en' ? (
+                  <>
+                    <Text className="block text-2xl font-bold leading-relaxed">{currentWord.zh}</Text>
+                    <Text className="mt-2 block text-sm text-muted-foreground">请输入对应的英文单词</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text className="block text-2xl font-bold leading-relaxed">{currentWord.en}</Text>
+                    <Text className="mt-2 block text-sm text-muted-foreground">请输入对应的中文意思</Text>
+                  </>
+                )}
+              </View>
+
+              {feedback ? (
+                <View
+                  className={
+                    feedback.correct
+                      ? 'mt-4 rounded-xl bg-emerald-50 p-4'
+                      : 'mt-4 rounded-xl bg-red-50 p-4'
+                  }
+                >
+                  <View className="mb-1 flex flex-row items-center gap-2">
+                    {feedback.correct ? (
+                      <CircleCheck size={18} color="#059669" />
+                    ) : (
+                      <CircleX size={18} color="#dc2626" />
+                    )}
+                    <Text
+                      className={
+                        feedback.correct
+                          ? 'block text-base font-bold text-emerald-700'
+                          : 'block text-base font-bold text-red-600'
+                      }
+                    >
+                      {feedback.correct ? '回答正确' : '回答错误'}
+                    </Text>
+                  </View>
+                  {!feedback.correct && (
+                    <Text className="block text-sm text-red-600">参考答案：{feedback.reference}</Text>
+                  )}
+                  {feedback.correct && feedback.pointsAwarded > 0 && (
+                    <Text className="block text-sm text-emerald-700">
+                      获得 {feedback.pointsAwarded} 积分
+                    </Text>
+                  )}
+                  <Button className="mt-3 w-full" onClick={nextQuestion}>
+                    {quizIndex + 1 >= total ? '查看成绩' : '下一题'}
+                  </Button>
+                </View>
+              ) : (
+                <View className="mt-4">
+                  <Input
+                    placeholder={mode === 'zh2en' ? '输入英文单词' : '输入中文意思'}
+                    value={answer}
+                    onInput={(e) => setAnswer(e.detail.value)}
+                    autoFocus
+                  />
+                  <Button className="mt-3 w-full" size="lg" onClick={handleSubmit} disabled={!answer.trim() || checking}>
+                    <Text>{checking ? '判题中…' : '提交答案'}</Text>
+                  </Button>
+                </View>
+              )}
+            </CardContent>
+          </Card>
+        </View>
+      )}
+
+      {/* 结果 */}
+      {step === 'result' && (
+        <View>
+          <Card className="mb-4 text-center">
+            <CardContent className="p-8">
+              <Text className="block text-2xl font-bold">本轮完成</Text>
+              <View className="mt-6 flex flex-row items-center justify-center gap-2">
+                <CircleCheck size={20} color="#059669" />
+                <Text className="block text-lg font-semibold">
+                  答对 {sessionCorrect} / {total} 题
+                </Text>
+              </View>
+              <View className="mt-4 flex flex-row items-center justify-center gap-2">
+                <Coins size={20} color="#b45309" />
+                <Text className="block text-lg font-semibold text-amber-700">
+                  获得 {sessionEarned} 积分
+                </Text>
+              </View>
+              <Text className="mt-2 block text-sm text-muted-foreground">
+                当前累计 {points} 积分
+              </Text>
+              <Button className="mt-6 w-full" size="lg" onClick={startQuiz}>
+                <RotateCcw size={16} color="#0f766e" />
+                <Text>再默写一轮</Text>
+              </Button>
+              <Button
+                className="mt-3 w-full"
+                variant="outline"
+                onClick={() => {
+                  setStep('upload');
+                  setImagePath('');
+                  setWords([]);
+                  setFeedback(null);
+                }}
+              >
+                换一张图片
+              </Button>
+            </CardContent>
+          </Card>
+        </View>
+      )}
     </View>
   );
-};
-
-export default IndexPage;
+}
