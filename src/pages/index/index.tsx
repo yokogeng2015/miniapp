@@ -55,6 +55,7 @@ function shuffle<T>(arr: T[]): T[] {
 export default function IndexPage() {
   const [step, setStep] = useState<Step>('upload');
   const [imagePath, setImagePath] = useState('');
+  const [h5RawFile, setH5RawFile] = useState<File | null>(null);
   const [words, setWords] = useState<WordItem[]>([]);
   const [mode, setMode] = useState<'zh2en' | 'en2zh'>('zh2en');
   const [quizOrder, setQuizOrder] = useState<number[]>([]);
@@ -87,19 +88,61 @@ export default function IndexPage() {
     refreshPoints();
   }, [refreshPoints]);
 
+  const isH5 = Taro.getEnv() === Taro.ENV_TYPE.WEB;
+
+  const pickH5File = (): Promise<File> =>
+    new Promise((resolve, reject) => {
+      try {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.style.display = 'none';
+        input.onchange = () => {
+          const file = input.files && input.files[0];
+          if (input.parentNode) input.parentNode.removeChild(input);
+          if (file) resolve(file);
+          else reject(new Error('未选择图片'));
+        };
+        document.body.appendChild(input);
+        input.click();
+      } catch (e) {
+        reject(e);
+      }
+    });
+
   const handleChooseImage = async () => {
     try {
-      const res = await Taro.chooseImage({ count: 1, sizeType: ['compressed'] });
-      setImagePath(res.tempFilePaths[0]);
+      if (isH5) {
+        const file = await pickH5File();
+        setH5RawFile(file);
+        setImagePath(URL.createObjectURL(file));
+      } else {
+        const res = await Taro.chooseImage({ count: 1, sizeType: ['compressed'] });
+        setImagePath(res.tempFilePaths[0]);
+        setH5RawFile(null);
+      }
     } catch (e) {
       console.error('choose image cancelled/error', e);
+      Taro.showToast({ title: '选择图片失败', icon: 'none' });
     }
   };
 
-  const handleRecognize = async () => {
-    if (!imagePath) return;
-    setStep('recognizing');
-    // 最多自动重试 2 次，应对偶发上传/识别抖动
+  const runRecognize = async (): Promise<WordItem[]> => {
+    // H5 端：Coze SW 会拦截 Taro.uploadFile 的 blob 上传(报 uploadFile:fail)。
+    // 改用原生 File 对象手动构造 FormData 上传，绕过限制。
+    if (isH5 && h5RawFile) {
+      const fd = new FormData();
+      fd.append('file', h5RawFile, h5RawFile.name || 'image.jpg');
+      const resp = await fetch(`${PROJECT_DOMAIN}/api/dictation/recognize`, {
+        method: 'POST',
+        body: fd,
+      });
+      const body = (await resp.json()) as ApiEnvelope<{ words: WordItem[] }>;
+      if (!body?.data?.words) throw new Error(body?.message || '识别失败');
+      return body.data.words;
+    }
+    // 小程序端：使用 Network.uploadFile，最多自动重试 2 次，应对偶发抖动
+    let lastErr: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const res = await Network.uploadFile({
@@ -107,29 +150,36 @@ export default function IndexPage() {
           filePath: imagePath,
           name: 'file',
         });
-        console.log('recognize body:', res.data);
         const body = res.data as unknown as ApiEnvelope<{ words: WordItem[] }>;
         const recognized: WordItem[] = body?.data?.words ?? [];
-        if (!recognized.length) {
-          // 后端返回 400（未识别到单词）时也提示更具体原因
-          const msg = (body as { message?: string })?.message;
-          Taro.showToast({ title: msg || '未识别到单词，请重试', icon: 'none' });
-          setStep('upload');
-          return;
-        }
-        setWords(recognized);
-        setStep('review');
-        return;
+        if (!recognized.length)
+          throw new Error((body as { message?: string })?.message || '未识别到单词');
+        return recognized;
       } catch (e) {
+        lastErr = e;
         console.error('recognize error (attempt ' + attempt + ')', e);
-        if (attempt < 2) {
-          await new Promise((r) => setTimeout(r, 600));
-          continue;
-        }
-        const errMsg = (e as { errorMessage?: string; errMsg?: string })?.errorMessage || (e as { errMsg?: string })?.errMsg;
-        Taro.showToast({ title: errMsg || '识别失败，请检查网络后重试', icon: 'none' });
-        setStep('upload');
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 600));
       }
+    }
+    throw lastErr ? new Error((lastErr as { errMsg?: string })?.errMsg) : new Error('识别失败');
+  };
+
+  const handleRecognize = async () => {
+    if (!imagePath) return;
+    setStep('recognizing');
+    try {
+      const recognized = await runRecognize();
+      console.log('recognized words:', recognized);
+      setWords(recognized);
+      setStep('review');
+    } catch (e) {
+      console.error('recognize final error', e);
+      const errMsg =
+        (e as { message?: string })?.message ||
+        (e as { errMsg?: string })?.errMsg ||
+        '识别失败，请检查网络后重试';
+      Taro.showToast({ title: errMsg, icon: 'none' });
+      setStep('upload');
     }
   };
 
