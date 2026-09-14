@@ -31,6 +31,15 @@ function genDeviceId(): string {
   return `dev-${id}`;
 }
 
+// 安全解析可能是 JSON 字符串的后端响应（微信 uploadFile 返回 String）
+function parseJson<T>(raw: string): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return {} as T;
+  }
+}
+
 function getDeviceId(): string {
   try {
     const existing = Taro.getStorageSync(POINTS_STORAGE_KEY);
@@ -150,7 +159,11 @@ export default function IndexPage() {
           filePath: imagePath,
           name: 'file',
         });
-        const body = res.data as unknown as ApiEnvelope<{ words: WordItem[] }>;
+        // 微信/抖音小程序端 Taro.uploadFile 的 res.data 是 JSON 字符串，需手动解析为对象
+        const raw = res.data as unknown;
+        const body = (
+          typeof raw === 'string' ? parseJson<ApiEnvelope<{ words: WordItem[] }>>(raw) : raw
+        ) as ApiEnvelope<{ words: WordItem[] }>;
         const recognized: WordItem[] = body?.data?.words ?? [];
         if (!recognized.length)
           throw new Error((body as { message?: string })?.message || '未识别到单词');
