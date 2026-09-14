@@ -27,33 +27,51 @@ const POINTS_PER_CORRECT = 10;
 const OCR_MODEL = 'doubao-seed-2-0-pro-260215';
 const JUDGE_MODEL = 'doubao-seed-2-0-lite-260215';
 
-const OCR_SYSTEM_PROMPT = `你是严谨的单词识别助手。请识别图片中的英文单词或短语及其常用中文释义。
+const OCR_SYSTEM_PROMPT = `你是专注的单词识别助手。图片可能是中英文混排或纯英文内容，通常为英文单词及其中文释义。请从中提取【英文单词或短语】及其最常用的【中文释义】。
 要求：
-1. 只提取适合做默写的英文单词/短语（名词、动词、形容词等具有明确含义的词汇）。
-2. 忽略无关文字、装饰文字、题目标题等。
-3. 中文释义要简洁准确，最常用义优先。
+1. 只提取适合默写的英文词汇（名词、动词、形容词、短语等，具有明确含义）。
+2. 忽略页码、标题、题号、装饰文字和无关注释。
+3. 每项 en 为该英文单词（小写），zh 为一句简洁准确的中文释义。
 4. 去除重复项。
-5. 最多返回 20 个。
-只输出一个 JSON 数组，格式：[{"en":"英文","zh":"中文释义"}]。若没有可用单词，输出 []。不要输出任何其他内容。`;
+5. 最多返回 20 项。
+只输出一个 JSON 数组，格式：[{"en":"单词","zh":"释义"}]。若没有可用单词，输出 []。禁止输出 JSON 之外的任何字符或解释。`;
 
-function extractJsonArray(text: string): WordItem[] {
-  const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+function normalizeWords(p: unknown): WordItem[] {
+  const arr = Array.isArray(p)
+    ? p
+    : p && typeof p === 'object' && Array.isArray((p as { words?: unknown }).words)
+    ? (p as { words: unknown[] }).words
+    : null;
+  if (!arr) return [];
+  return arr
+    .map((w) => {
+      const o = (w ?? {}) as Record<string, unknown>;
+      return {
+        en: String(o.en ?? o.word ?? '').trim(),
+        zh: String(o.zh ?? o.meaning ?? '').trim(),
+      };
+    })
+    .filter((w) => w.en && w.zh);
+}
+
+function extractJsonArray(text: unknown): WordItem[] {
+  const s = (typeof text === 'string' ? text : JSON.stringify(text)).trim();
+  const cleaned = s.replace(/```json/gi, '').replace(/```/g, '').trim();
   try {
-    const parsed = JSON.parse(cleaned);
-    return Array.isArray(parsed) ? parsed : [];
+    return normalizeWords(JSON.parse(cleaned));
   } catch {
-    const start = cleaned.indexOf('[');
-    const end = cleaned.lastIndexOf(']');
-    if (start >= 0 && end > start) {
-      const sub = cleaned.slice(start, end + 1);
-      try {
-        return JSON.parse(sub);
-      } catch {
-        return [];
-      }
-    }
-    return [];
+    /* fall through */
   }
+  const start = cleaned.indexOf('[');
+  const end = cleaned.lastIndexOf(']');
+  if (start >= 0 && end > start) {
+    try {
+      return normalizeWords(JSON.parse(cleaned.slice(start, end + 1)));
+    } catch {
+      /* fall through */
+    }
+  }
+  return [];
 }
 
 @Injectable()
@@ -71,28 +89,32 @@ export class DictationService {
     const { url } = await this.storageService.uploadImage(file.buffer, file.originalname, file.mimetype);
 
     const client = this.createClient(customHeaders);
-    const messages: LLMMessage[] = [
-      { role: 'system', content: OCR_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: '请识别这张图片中的英文学习单词并返回 JSON 数组。' },
-          { type: 'image_url', image_url: { url, detail: 'high' } },
-        ],
-      },
-    ];
 
-    const resp = await client.invoke(messages, { model: OCR_MODEL, temperature: 0.2 });
-    const raw = resp.content || '[]';
-    const words = extractJsonArray(raw)
-      .map((w) => ({
-        en: String(w?.en ?? '').trim(),
-        zh: String(w?.zh ?? '').trim(),
-      }))
-      .filter((w) => w.en && w.zh);
+    let words: WordItem[] = [];
+    const rawLogs: string[] = [];
+    // 最多尝试 2 次，应对 LLM 偶发输出非标准格式的情况
+    for (let attempt = 0; attempt < 2 && words.length === 0; attempt++) {
+      const hint =
+        attempt === 1 ? '\n注意：请务必只输出 JSON 数组，禁止输出任何其他文字或解释。' : '';
+      const messages: LLMMessage[] = [
+        { role: 'system', content: OCR_SYSTEM_PROMPT + hint },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: '请识别这张图片中的英文学习单词并返回 JSON 数组。' },
+            { type: 'image_url', image_url: { url, detail: 'high' } },
+          ],
+        },
+      ];
+      const resp = await client.invoke(messages, { model: OCR_MODEL, temperature: 0.2 });
+      const raw = resp.content || '[]';
+      rawLogs.push(typeof raw === 'string' ? raw : JSON.stringify(raw));
+      words = extractJsonArray(raw);
+    }
 
     if (words.length === 0) {
-      throw new BadRequestException('未能从图片中识别出有效单词，请更换更清晰的图片');
+      console.error('[dictation] OCR 原始输出:', rawLogs.join('\n'));
+      throw new BadRequestException('未能从图片中识别出有效单词，请更换更清晰的图片或重试');
     }
 
     console.log('[dictation] recognized words:', words.length);

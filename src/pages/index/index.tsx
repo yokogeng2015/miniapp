@@ -99,26 +99,37 @@ export default function IndexPage() {
   const handleRecognize = async () => {
     if (!imagePath) return;
     setStep('recognizing');
-    try {
-      const res = await Network.uploadFile({
-        url: '/api/dictation/recognize',
-        filePath: imagePath,
-        name: 'file',
-      });
-      console.log('recognize body:', res.data);
-      const body = res.data as unknown as ApiEnvelope<{ words: WordItem[] }>;
-      const recognized: WordItem[] = body?.data?.words ?? [];
-      if (!recognized.length) {
-        Taro.showToast({ title: '未识别到单词，请重试', icon: 'none' });
-        setStep('upload');
+    // 最多自动重试 2 次，应对偶发上传/识别抖动
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await Network.uploadFile({
+          url: '/api/dictation/recognize',
+          filePath: imagePath,
+          name: 'file',
+        });
+        console.log('recognize body:', res.data);
+        const body = res.data as unknown as ApiEnvelope<{ words: WordItem[] }>;
+        const recognized: WordItem[] = body?.data?.words ?? [];
+        if (!recognized.length) {
+          // 后端返回 400（未识别到单词）时也提示更具体原因
+          const msg = (body as { message?: string })?.message;
+          Taro.showToast({ title: msg || '未识别到单词，请重试', icon: 'none' });
+          setStep('upload');
+          return;
+        }
+        setWords(recognized);
+        setStep('review');
         return;
+      } catch (e) {
+        console.error('recognize error (attempt ' + attempt + ')', e);
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 600));
+          continue;
+        }
+        const errMsg = (e as { errorMessage?: string; errMsg?: string })?.errorMessage || (e as { errMsg?: string })?.errMsg;
+        Taro.showToast({ title: errMsg || '识别失败，请检查网络后重试', icon: 'none' });
+        setStep('upload');
       }
-      setWords(recognized);
-      setStep('review');
-    } catch (e) {
-      console.error('recognize error', e);
-      Taro.showToast({ title: '识别失败，请稍后重试', icon: 'none' });
-      setStep('upload');
     }
   };
 
