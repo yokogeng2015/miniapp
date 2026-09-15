@@ -278,8 +278,9 @@ export default function IndexPage() {
     setBankLoading(true);
     try {
       const res = await Network.request({ url: `/api/dictation/wordlists?deviceId=${deviceId}` });
-      const body = res.data as ApiEnvelope<{ list: SavedList[] }>;
-      const list = body?.data?.list ?? [];
+      const body = res.data as ApiEnvelope<SavedList[]>;
+      // 后端返回 data 为数组（不是 { list: [] }）
+      const list = Array.isArray(body?.data) ? (body.data as SavedList[]) : [];
       setSavedLists(list);
       setSelectedIds((ids) => ids.filter((id) => list.some((l) => l.id === id)));
     } catch (e) {
