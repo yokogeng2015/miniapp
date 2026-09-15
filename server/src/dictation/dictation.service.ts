@@ -26,6 +26,8 @@ interface LLMMessage {
 }
 
 const POINTS_PER_CORRECT = 10;
+// 积分全局共享：所有设备共用同一条累计记录，实现跨端同步
+const GLOBAL_POINTS_ID = 'global_points_shared';
 const OCR_MODEL = 'doubao-seed-2-0-pro-260215';
 const JUDGE_MODEL = 'doubao-seed-2-0-lite-260215';
 
@@ -129,15 +131,12 @@ export class DictationService {
     return { imageUrl: url, words };
   }
 
-  async getPoints(deviceId: string): Promise<{ totalPoints: number; correctCount: number; totalCount: number }> {
-    if (!deviceId) {
-      throw new BadRequestException('缺少设备标识 deviceId');
-    }
+  async getPoints(): Promise<{ totalPoints: number; correctCount: number; totalCount: number }> {
     const client = getSupabaseClient();
     const { data } = await client
       .from('study_users')
       .select('total_points, correct_count, total_count')
-      .eq('device_id', deviceId)
+      .eq('device_id', GLOBAL_POINTS_ID)
       .maybeSingle();
 
     return {
@@ -258,7 +257,7 @@ export class DictationService {
 
     let totalPoints = 0;
     try {
-      totalPoints = await this.awardResult(deviceId, correct);
+      totalPoints = await this.awardResult(correct);
     } catch (e) {
       console.error('[dictation] award points failed:', (e as Error).message);
     }
@@ -306,14 +305,14 @@ export class DictationService {
     return { correct, explanation, acceptedAsAlternative: correct && explanation.length > 0 };
   }
 
-  private async awardResult(deviceId: string, correct: boolean): Promise<number> {
+  private async awardResult(correct: boolean): Promise<number> {
     const client = getSupabaseClient();
     const now = new Date().toISOString();
 
     const { data: existing } = await client
       .from('study_users')
       .select('id, total_points, total_count, correct_count')
-      .eq('device_id', deviceId)
+      .eq('device_id', GLOBAL_POINTS_ID)
       .maybeSingle();
 
     if (existing) {
@@ -325,11 +324,10 @@ export class DictationService {
         patches.total_points = (existing.total_points ?? 0) + POINTS_PER_CORRECT;
         patches.correct_count = (existing.correct_count ?? 0) + 1;
       }
-      // correct_count maintained but not critical for display
       const { data, error } = await client
         .from('study_users')
         .update(patches)
-        .eq('device_id', deviceId)
+        .eq('device_id', GLOBAL_POINTS_ID)
         .select('total_points')
         .single();
       if (error) throw new Error(error.message);
@@ -340,7 +338,7 @@ export class DictationService {
     const { data, error } = await client
       .from('study_users')
       .insert({
-        device_id: deviceId,
+        device_id: GLOBAL_POINTS_ID,
         total_points: insertCount,
         correct_count: correct ? 1 : 0,
         total_count: 1,

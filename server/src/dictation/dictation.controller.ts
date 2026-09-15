@@ -51,8 +51,8 @@ export class DictationController {
 
   @Get('points')
   @HttpCode(200)
-  async points(@Query('deviceId') deviceId: string) {
-    const data = await this.dictationService.getPoints(deviceId);
+  async points() {
+    const data = await this.dictationService.getPoints();
     return { status: 'success', data };
   }
 
