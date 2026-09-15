@@ -9,11 +9,12 @@
 语义色已映射到 `app.css` 的 CSS 变量，直接使用 Tailwind 语义类；强调色用 Tailwind 底色调色板。
 
 - 页面背景：`bg-background`（iOS 浅灰 #f2f2f7）
-- 主色/按钮：`bg-primary text-primary-foreground`（系统蓝 #007aff）
+- 主色/按钮：`bg-primary text-primary-foreground`（扣子玫红 #e92e6f）
 - 卡片底：`bg-card text-card-foreground`（白 #ffffff）
-- 次级浅底：`bg-secondary text-secondary-foreground`（浅蓝 #e8f1ff）
+- 次级浅底：`bg-secondary text-secondary-foreground`（浅玫红 #fde3ec）
 - 弱化底/描边：`bg-muted text-muted-foreground`（浅灰 #f2f2f7 / 灰字 #6c6c70）
 - 积分：`text-amber-500`、`bg-amber-50`
+- 「从我的词单」入口：浅紫底 `bg-violet-200 text-violet-900`，无边框
 - 答对：`text-emerald-500`、`bg-emerald-50`；答错：`text-rose-500`、`bg-rose-50`
 - 边框：`border-border`（浅灰线）
 

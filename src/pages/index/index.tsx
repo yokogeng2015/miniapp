@@ -484,7 +484,7 @@ export default function IndexPage() {
       {/* 顶部积分栏 */}
       <View className="mb-5 flex flex-row items-center justify-between">
         <View className="flex flex-row items-center gap-2">
-          <ScanLine size={22} className="text-primary" color="#007aff" />
+          <ScanLine size={22} className="text-primary" color="#e92e6f" />
           <Text className="block text-lg font-bold text-primary">随拍默写</Text>
         </View>
         <View
@@ -504,8 +504,12 @@ export default function IndexPage() {
       {/* 我的词单入口 */}
       {(step === 'upload' || step === 'review') && (
         <View className="mb-4">
-          <Button variant="outline" className="w-full" onClick={openBank}>
-            从我的词单开始默写
+          <Button
+            variant="default"
+            className="w-full border-none bg-violet-200 text-violet-900 shadow-none"
+            onClick={openBank}
+          >
+            <Text>从我的词单开始默写</Text>
           </Button>
         </View>
       )}
@@ -546,7 +550,7 @@ export default function IndexPage() {
                   hoverClass="opacity-80"
                   className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary bg-muted px-4 py-12"
                 >
-                  <Camera size={40} className="text-primary" color="#007aff" />
+                  <Camera size={40} className="text-primary" color="#e92e6f" />
                   <Text className="mt-3 block text-sm font-medium">
                     {imagePath ? '已选择图片，点击可更换' : '点击选择单词图片'}
                   </Text>
@@ -749,7 +753,7 @@ export default function IndexPage() {
                             >
                               删除
                             </Button>
-                            <CircleCheck size={22} color={sel ? '#007aff' : '#cbd5e1'} strokeWidth={1.6} />
+                            <CircleCheck size={22} color={sel ? '#e92e6f' : '#cbd5e1'} strokeWidth={1.6} />
                           </View>
                         </View>
                         <View className="mt-2 flex flex-row flex-wrap gap-1">
@@ -929,7 +933,7 @@ export default function IndexPage() {
                 当前累计 {points} 积分
               </Text>
               <Button className="mt-6 w-full" size="lg" onClick={() => startQuiz()}>
-                <RotateCcw size={16} color="#007aff" />
+                <RotateCcw size={16} color="#e92e6f" />
                 <Text>再默写一轮</Text>
               </Button>
               <Button
