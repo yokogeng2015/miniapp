@@ -452,11 +452,11 @@ export default function IndexPage() {
       {/* 顶部积分栏 */}
       <View className="mb-5 flex flex-row items-center justify-between">
         <View className="flex flex-row items-center gap-2">
-          <ScanLine size={22} className="text-primary" color="#0f766e" />
+          <ScanLine size={22} className="text-primary" color="#007aff" />
           <Text className="block text-lg font-bold text-primary">随拍默写</Text>
         </View>
         <Badge variant="secondary" className="gap-1 rounded-full px-3 py-1">
-          <Coins size={14} color="#b45309" />
+          <Coins size={14} color="#f59e0b" />
           <Text className="text-xs font-semibold text-amber-700">{points} 积分</Text>
         </Badge>
       </View>
@@ -484,12 +484,6 @@ export default function IndexPage() {
             </CardContent>
           </Card>
 
-          {step === 'upload' && (
-            <Button className="mb-4 w-full" variant="outline" onClick={openBank}>
-              从我的词单开始默写
-            </Button>
-          )}
-
           <Card>
             <CardContent className="p-5">
               {step === 'review' && imagePath ? (
@@ -512,7 +506,7 @@ export default function IndexPage() {
                   hoverClass="opacity-80"
                   className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary bg-muted px-4 py-12"
                 >
-                  <Camera size={40} className="text-primary" color="#0f766e" />
+                  <Camera size={40} className="text-primary" color="#007aff" />
                   <Text className="mt-3 block text-sm font-medium">
                     {imagePath ? '已选择图片，点击可更换' : '点击选择单词图片'}
                   </Text>
@@ -715,7 +709,7 @@ export default function IndexPage() {
                             >
                               删除
                             </Button>
-                            <CircleCheck size={22} color={sel ? '#0f766e' : '#cbd5e1'} strokeWidth={1.6} />
+                            <CircleCheck size={22} color={sel ? '#007aff' : '#cbd5e1'} strokeWidth={1.6} />
                           </View>
                         </View>
                         <View className="mt-2 flex flex-row flex-wrap gap-1">
@@ -782,7 +776,7 @@ export default function IndexPage() {
                   第 {quizIndex + 1} / {total} 题
                 </Text>
                 <Badge variant="secondary">
-                  <Coins size={12} color="#b45309" />
+                  <Coins size={12} color="#f59e0b" />
                   <Text className="text-xs font-semibold text-amber-700">+10 / 题</Text>
                 </Badge>
               </View>
@@ -886,7 +880,7 @@ export default function IndexPage() {
                 </Text>
               </View>
               <View className="mt-4 flex flex-row items-center justify-center gap-2">
-                <Coins size={20} color="#b45309" />
+                <Coins size={20} color="#f59e0b" />
                 <Text className="block text-lg font-semibold text-amber-700">
                   获得 {sessionEarned} 积分
                 </Text>
@@ -895,7 +889,7 @@ export default function IndexPage() {
                 当前累计 {points} 积分
               </Text>
               <Button className="mt-6 w-full" size="lg" onClick={() => startQuiz()}>
-                <RotateCcw size={16} color="#0f766e" />
+                <RotateCcw size={16} color="#007aff" />
                 <Text>再默写一轮</Text>
               </Button>
               <Button

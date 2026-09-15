@@ -11,25 +11,25 @@ page {
 :root,
 page,
 root-portal {
-  --background: #f7f4ee;
-  --foreground: #1f2a26;
+  --background: #f2f2f7;
+  --foreground: #1c1c1e;
   --card: #ffffff;
-  --card-foreground: #1f2a26;
+  --card-foreground: #1c1c1e;
   --popover: #ffffff;
-  --popover-foreground: #1f2a26;
-  --primary: #0f766e;
+  --popover-foreground: #1c1c1e;
+  --primary: #007aff;
   --primary-foreground: #ffffff;
-  --secondary: #e6f2ef;
-  --secondary-foreground: #0f3d38;
-  --muted: #f1ece2;
-  --muted-foreground: #6d6a63;
-  --accent: #e6f2ef;
-  --accent-foreground: #0f3d38;
-  --destructive: #e11d48;
-  --destructive-foreground: #fff1f1;
-  --border: #e6dfd2;
-  --input: #e6dfd2;
-  --ring: #0f766e;
+  --secondary: #e8f1ff;
+  --secondary-foreground: #1c1c1e;
+  --muted: #f2f2f7;
+  --muted-foreground: #6c6c70;
+  --accent: #e8f1ff;
+  --accent-foreground: #1c1c1e;
+  --destructive: #ff3b30;
+  --destructive-foreground: #ffffff;
+  --border: #e5e5e8;
+  --input: #e5e5e8;
+  --ring: #007aff;
   --sidebar: lab(98.26% 0 0);
   --sidebar-foreground: lab(2.75381% 0 0);
   --sidebar-primary: lab(7.78201% -0.0000149012 0);
