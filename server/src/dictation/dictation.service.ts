@@ -177,15 +177,12 @@ export class DictationService {
     return this.mapWordlist(data);
   }
 
-  async listWordlists(deviceId: string) {
-    if (!deviceId) {
-      throw new BadRequestException('缺少设备标识 deviceId');
-    }
+  async listWordlists() {
+    // 词单为个人学习资料库，跨端互通：不按设备过滤，全部返回
     const client = getSupabaseClient();
     const { data, error } = await client
       .from('wordlists')
       .select('*')
-      .eq('device_id', deviceId)
       .order('created_at', { ascending: false });
     if (error) {
       console.error('[dictation] list wordlists error', error.message);
@@ -194,16 +191,15 @@ export class DictationService {
     return (data ?? []).map((w) => this.mapWordlist(w));
   }
 
-  async deleteWordlist(id: string, deviceId: string) {
-    if (!id || !deviceId) {
-      throw new BadRequestException('参数不完整');
+  async deleteWordlist(id: string) {
+    if (!id) {
+      throw new BadRequestException('缺少参数');
     }
     const client = getSupabaseClient();
     const { error } = await client
       .from('wordlists')
       .delete()
-      .eq('id', id)
-      .eq('device_id', deviceId);
+      .eq('id', id);
     if (error) {
       console.error('[dictation] delete wordlist error', error.message);
       throw new BadRequestException('删除词单失败');

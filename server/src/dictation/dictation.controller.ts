@@ -77,15 +77,15 @@ export class DictationController {
 
   @Get('wordlists')
   @HttpCode(200)
-  async listWordlists(@Query('deviceId') deviceId: string) {
-    const data = await this.dictationService.listWordlists(deviceId);
+  async listWordlists() {
+    const data = await this.dictationService.listWordlists();
     return { status: 'success', data };
   }
 
   @Delete('wordlists/:id')
   @HttpCode(200)
-  async deleteWordlist(@Param('id') id: string, @Query('deviceId') deviceId: string) {
-    const data = await this.dictationService.deleteWordlist(id, deviceId);
+  async deleteWordlist(@Param('id') id: string) {
+    const data = await this.dictationService.deleteWordlist(id);
     return { status: 'success', data };
   }
 }
