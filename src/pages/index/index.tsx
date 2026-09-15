@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Taro from '@tarojs/taro';
 import { Image, Text, View } from '@tarojs/components';
-import { Camera, CircleCheck, CircleX, Coins, Lock, RotateCcw, ScanLine } from 'lucide-react-taro';
+import { Camera, CircleCheck, CircleX, Coins, RotateCcw, ScanLine } from 'lucide-react-taro';
 import { Network } from '@/network';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -487,10 +487,18 @@ export default function IndexPage() {
           <ScanLine size={22} className="text-primary" color="#007aff" />
           <Text className="block text-lg font-bold text-primary">随拍默写</Text>
         </View>
-        <Badge variant="secondary" className="gap-1 rounded-full px-3 py-1">
-          <Coins size={14} color="#f59e0b" />
-          <Text className="text-xs font-semibold text-amber-700">{points} 积分</Text>
-        </Badge>
+        <View
+          className="rounded-full bg-secondary px-3 py-1"
+          onClick={() => {
+            setResetPwd('');
+            setResetOpen(true);
+          }}
+        >
+          <View className="flex flex-row items-center gap-1">
+            <Coins size={14} color="#f59e0b" />
+            <Text className="text-xs font-semibold text-foreground">{points} 积分</Text>
+          </View>
+        </View>
       </View>
 
       {/* 我的词单入口 */}
@@ -936,46 +944,42 @@ export default function IndexPage() {
               >
                 换一张图片
               </Button>
-              <Button
-                className="mt-3 w-full"
-                variant="ghost"
-                onClick={() => {
-                  setResetPwd('');
-                  setResetOpen(true);
-                }}
-              >
-                <Lock size={14} color="#6b7280" />
-                <Text className="text-muted-foreground">积分清零</Text>
-              </Button>
             </CardContent>
           </Card>
         </View>
       )}
 
-      {/* 积分清零确认弹窗 */}
+      {/* 积分详情与清零弹窗 */}
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="block text-base font-semibold">积分清零确认</DialogTitle>
+            <DialogTitle className="block text-base font-semibold">我的积分</DialogTitle>
           </DialogHeader>
-          <Text className="block text-sm text-muted-foreground">
-            清零后当前累计积分、答对题数将归零，此操作不可恢复。请输入确认密码：
-          </Text>
-          <View className="mt-3 rounded-xl bg-muted px-3 py-2">
-            <Input
-              className="w-full bg-transparent"
-              password
-              placeholder="请输入确认密码"
-              value={resetPwd}
-              onInput={(e) => setResetPwd(e.detail.value)}
-            />
+          <View className="mt-2 flex flex-col items-center py-2">
+            <Text className="block text-3xl font-bold text-amber-600">{points}</Text>
+            <Text className="mt-1 block text-sm text-muted-foreground">当前累计积分</Text>
           </View>
-          <DialogFooter className="mt-4 flex flex-row gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setResetOpen(false)}>
-              取消
-            </Button>
-            <Button className="flex-1" disabled={resetting} onClick={handleResetPoints}>
+          <View className="mt-3 rounded-xl border border-border p-4">
+            <Text className="mb-2 block text-sm font-semibold">积分清零</Text>
+            <Text className="block text-xs text-muted-foreground">
+              输入确认密码（1234）即可清零累计积分，此操作不可恢复。
+            </Text>
+            <View className="mt-3 rounded-xl bg-muted px-3 py-2">
+              <Input
+                className="w-full bg-transparent"
+                password
+                placeholder="请输入确认密码"
+                value={resetPwd}
+                onInput={(e) => setResetPwd(e.detail.value)}
+              />
+            </View>
+            <Button className="mt-3 w-full" variant="destructive" disabled={resetting} onClick={handleResetPoints}>
               {resetting ? '清零中…' : '确认清零'}
+            </Button>
+          </View>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" className="w-full" onClick={() => setResetOpen(false)}>
+              关闭
             </Button>
           </DialogFooter>
         </DialogContent>
