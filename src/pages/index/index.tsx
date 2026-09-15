@@ -311,8 +311,19 @@ export default function IndexPage() {
         method: 'POST',
         data: { deviceId, name, words },
       });
-      const body = res.data as ApiEnvelope<{ id: string }>;
-      if (!body?.data?.id) throw new Error(body?.message || '保存失败');
+      const body = res.data as ApiEnvelope<{ id: string; name: string; words: WordItem[]; wordCount: number; createdAt: string }>;
+      const saved = body?.data;
+      if (!saved?.id) throw new Error(body?.message || '保存失败');
+      // 立即把新词单合并进本地列表，保证保存后马上能看到记录
+      const newList: SavedList = {
+        id: saved.id,
+        name: saved.name || name,
+        words: saved.words?.length ? saved.words : words,
+        wordCount: saved.wordCount ?? words.length,
+        createdAt: saved.createdAt || new Date().toISOString(),
+      };
+      setSavedLists((prev) => [newList, ...prev.filter((l) => l.id !== newList.id)]);
+      setSelectedIds((ids) => (ids.includes(newList.id) ? ids : [...ids, newList.id]));
       Taro.showToast({ title: `已保存「${name}」`, icon: 'none' });
       setBankName('');
     } catch (e) {
