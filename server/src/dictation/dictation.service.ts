@@ -33,14 +33,17 @@ const RESET_PASSWORD = '1234';
 const OCR_MODEL = 'doubao-seed-2-0-pro-260215';
 const JUDGE_MODEL = 'doubao-seed-2-0-lite-260215';
 
-const OCR_SYSTEM_PROMPT = `你是专注的单词识别助手。图片可能是中英文混排或纯英文内容，通常为英文单词及其中文释义。请从中提取【英文单词或短语】及其最常用的【中文释义】。
-要求：
-1. 只提取适合默写的英文词汇（名词、动词、形容词、短语等，具有明确含义）。
-2. 忽略页码、标题、题号、装饰文字和无关注释。
-3. 每项 en 为该英文单词（小写），zh 为一句简洁准确的中文释义。
-4. 去除重复项。
+const OCR_SYSTEM_PROMPT = `你是专注的英语学习资料识别助手。图片通常是英文词条、短语或短句的列表（可能中英混排，也可能是纯英文没有中文）。
+请把图片中的每一行英文学习条目提取出来，要求：
+1. 保持原始短语或短句的完整形态，【绝对不要把一个短语/短句拆分成单个单词】。例如
+   - "take out everything" 应作为一整条，而不是拆成 take / out / everything；
+   - "an English-Chinese dictionary" 应作为一整条；
+   - "your secret to English learning" 应作为一整条。
+2. 每项都必须给出准确的中文翻译 zh：如果图片中该行已带有中文释义，就采用图中的中文；如果图片中没有中文，你自己补上简洁准确的中文翻译，保证每项 zh 都有值。
+3. 忽略页码、标题、题号、序号（如 1. 2. 3.）、装饰文字和无关注释。
+4. 去除重复项，并保持原有顺序。
 5. 最多返回 20 项。
-只输出一个 JSON 数组，格式：[{"en":"单词","zh":"释义"}]。若没有可用单词，输出 []。禁止输出 JSON 之外的任何字符或解释。`;
+只输出一个 JSON 数组，格式：[{"en":"短语","zh":"中文翻译"}]。若没有可用的学习条目，输出 []。禁止输出 JSON 之外的任何字符或解释。`;
 
 // 判断是否为单个英文单词（不含空格、非中文）：用于区分“单词默写”与“短语/句子翻译”
 function isSingleWord(s: string): boolean {
@@ -113,7 +116,7 @@ export class DictationService {
         {
           role: 'user',
           content: [
-            { type: 'text', text: '请识别这张图片中的英文学习单词并返回 JSON 数组。' },
+            { type: 'text', text: '请识别这张图片中的英文学习条目（可能含单词、短语或短句）并返回 JSON 数组。' },
             { type: 'image_url', image_url: { url, detail: 'high' } },
           ],
         },
