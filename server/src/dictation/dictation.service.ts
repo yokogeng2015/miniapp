@@ -147,6 +147,80 @@ export class DictationService {
     };
   }
 
+  async saveWordlist(body: { deviceId: string; name: string; words: { en: string; zh: string }[] }) {
+    if (!body?.deviceId) {
+      throw new BadRequestException('缺少设备标识 deviceId');
+    }
+    if (!body?.name?.trim()) {
+      throw new BadRequestException('请为词单命名');
+    }
+    const words = (body.words ?? []).filter((w) => w && w.en && w.zh);
+    if (!words.length) {
+      throw new BadRequestException('词单为空，无法保存');
+    }
+    const name = body.name.trim().slice(0, 50);
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from('wordlists')
+      .insert({
+        device_id: body.deviceId,
+        name,
+        words: words.slice(0, 200),
+        word_count: words.length,
+      })
+      .select('*')
+      .single();
+    if (error) {
+      console.error('[dictation] save wordlist error', error.message);
+      throw new BadRequestException('保存词单失败：' + error.message);
+    }
+    return this.mapWordlist(data);
+  }
+
+  async listWordlists(deviceId: string) {
+    if (!deviceId) {
+      throw new BadRequestException('缺少设备标识 deviceId');
+    }
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from('wordlists')
+      .select('*')
+      .eq('device_id', deviceId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[dictation] list wordlists error', error.message);
+      throw new BadRequestException('获取词单失败');
+    }
+    return (data ?? []).map((w) => this.mapWordlist(w));
+  }
+
+  async deleteWordlist(id: string, deviceId: string) {
+    if (!id || !deviceId) {
+      throw new BadRequestException('参数不完整');
+    }
+    const client = getSupabaseClient();
+    const { error } = await client
+      .from('wordlists')
+      .delete()
+      .eq('id', id)
+      .eq('device_id', deviceId);
+    if (error) {
+      console.error('[dictation] delete wordlist error', error.message);
+      throw new BadRequestException('删除词单失败');
+    }
+    return { deletedId: id };
+  }
+
+  private mapWordlist(row: any) {
+    return {
+      id: row.id,
+      name: row.name,
+      words: row.words ?? [],
+      wordCount: row.word_count ?? 0,
+      createdAt: row.created_at,
+    };
+  }
+
   async checkAnswer(
     body: { deviceId: string; mode: 'zh2en' | 'en2zh'; en: string; zh: string; answer: string },
     customHeaders: Record<string, string>,
@@ -280,4 +354,5 @@ export class DictationService {
     if (error) throw new Error(error.message);
     return data?.total_points ?? 0;
   }
+
 }

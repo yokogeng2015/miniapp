@@ -2,8 +2,10 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
+  Param,
   Post,
   Query,
   Req,
@@ -61,6 +63,29 @@ export class DictationController {
       req.headers as unknown as Record<string, string>,
     );
     const data = await this.dictationService.checkAnswer(body, customHeaders);
+    return { status: 'success', data };
+  }
+
+  @Post('wordlists/save')
+  @HttpCode(200)
+  async saveWordlist(
+    @Body() body: { deviceId: string; name: string; words: { en: string; zh: string }[] },
+  ) {
+    const data = await this.dictationService.saveWordlist(body);
+    return { status: 'success', data };
+  }
+
+  @Get('wordlists')
+  @HttpCode(200)
+  async listWordlists(@Query('deviceId') deviceId: string) {
+    const data = await this.dictationService.listWordlists(deviceId);
+    return { status: 'success', data };
+  }
+
+  @Delete('wordlists/:id')
+  @HttpCode(200)
+  async deleteWordlist(@Param('id') id: string, @Query('deviceId') deviceId: string) {
+    const data = await this.dictationService.deleteWordlist(id, deviceId);
     return { status: 'success', data };
   }
 }

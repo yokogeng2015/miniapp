@@ -20,7 +20,15 @@ interface ApiEnvelope<T> {
   data?: T;
 }
 
-type Step = 'upload' | 'recognizing' | 'review' | 'quiz' | 'result';
+type Step = 'upload' | 'recognizing' | 'review' | 'quiz' | 'result' | 'bank';
+
+interface SavedList {
+  id: string;
+  name: string;
+  words: WordItem[];
+  wordCount: number;
+  createdAt: string;
+}
 
 const POINTS_STORAGE_KEY = 'dictation_device_id';
 
@@ -124,6 +132,14 @@ export default function IndexPage() {
 
   const [points, setPoints] = useState(0);
   const [deviceId] = useState<string>(() => getDeviceId());
+
+  const [savedLists, setSavedLists] = useState<SavedList[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [sampleMode, setSampleMode] = useState<'all' | 'sample'>('all');
+  const [sampleCount, setSampleCount] = useState('5');
+  const [bankName, setBankName] = useState('');
+  const [savingList, setSavingList] = useState(false);
 
   const refreshPoints = useCallback(async () => {
     try {
@@ -237,8 +253,18 @@ export default function IndexPage() {
     }
   };
 
-  const startQuiz = () => {
-    const order = shuffle(words.map((_, i) => i));
+  const startQuiz = (pool?: WordItem[]) => {
+    let source = pool && pool.length ? pool : words;
+    if (!source.length) {
+      Taro.showToast({ title: '暂无可默写的单词', icon: 'none' });
+      return;
+    }
+    const n = Math.max(1, parseInt(sampleCount, 10) || 5);
+    if (sampleMode === 'sample' && source.length > n) {
+      source = shuffle(source).slice(0, n);
+    }
+    setWords(source);
+    const order = shuffle(source.map((_, i) => i));
     setQuizOrder(order);
     setQuizIndex(0);
     setSessionCorrect(0);
@@ -246,6 +272,91 @@ export default function IndexPage() {
     setAnswer('');
     setFeedback(null);
     setStep('quiz');
+  };
+
+  const loadSavedLists = useCallback(async () => {
+    setBankLoading(true);
+    try {
+      const res = await Network.request({ url: `/api/dictation/wordlists?deviceId=${deviceId}` });
+      const body = res.data as ApiEnvelope<{ list: SavedList[] }>;
+      const list = body?.data?.list ?? [];
+      setSavedLists(list);
+      setSelectedIds((ids) => ids.filter((id) => list.some((l) => l.id === id)));
+    } catch (e) {
+      console.error('load wordlists failed', e);
+    } finally {
+      setBankLoading(false);
+    }
+  }, [deviceId]);
+
+  const openBank = () => {
+    setStep('bank');
+    loadSavedLists();
+  };
+
+  const saveCurrentList = async () => {
+    const name = bankName.trim();
+    if (!name) {
+      Taro.showToast({ title: '请先填写词单名称', icon: 'none' });
+      return;
+    }
+    if (!words.length) {
+      Taro.showToast({ title: '暂无可保存的单词', icon: 'none' });
+      return;
+    }
+    setSavingList(true);
+    try {
+      const res = await Network.request({
+        url: '/api/dictation/wordlists/save',
+        method: 'POST',
+        data: { deviceId, name, words },
+      });
+      const body = res.data as ApiEnvelope<{ id: string }>;
+      if (!body?.data?.id) throw new Error(body?.message || '保存失败');
+      Taro.showToast({ title: `已保存「${name}」`, icon: 'none' });
+      setBankName('');
+    } catch (e) {
+      console.error('save wordlist failed', e);
+      Taro.showToast({ title: '保存词单失败', icon: 'none' });
+    } finally {
+      setSavingList(false);
+    }
+  };
+
+  const deleteSavedList = async (id: string) => {
+    try {
+      await Network.request({
+        url: `/api/dictation/wordlists/${id}?deviceId=${deviceId}`,
+        method: 'DELETE',
+      });
+      setSavedLists((l) => l.filter((x) => x.id !== id));
+    } catch (e) {
+      console.error('delete wordlist failed', e);
+    }
+  };
+
+  const buildPoolFromSelected = (): WordItem[] => {
+    const map = new Map<string, WordItem>();
+    for (const id of selectedIds) {
+      const list = savedLists.find((l) => l.id === id);
+      list?.words?.forEach((w) => {
+        if (w && w.en && w.zh && !map.has(w.en)) map.set(w.en, w);
+      });
+    }
+    return Array.from(map.values());
+  };
+
+  const toggleList = (id: string) => {
+    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+  };
+
+  const startFromBank = () => {
+    const pool = buildPoolFromSelected();
+    if (!pool.length) {
+      Taro.showToast({ title: '请先选择词单', icon: 'none' });
+      return;
+    }
+    startQuiz(pool);
   };
 
   const currentWord = quizOrder.length ? words[quizOrder[quizIndex]] : null;
@@ -289,6 +400,20 @@ export default function IndexPage() {
       }
       if (typeof d?.totalPoints === 'number') setPoints(d.totalPoints);
       else refreshPoints();
+      // 移动端：答题后自动定位到反馈区，避免被软键盘/小屏遮挡看不到提示
+      setTimeout(
+        () => {
+          try {
+            if (isH5) {
+              (document as unknown as { getElementById: (id: string) => Element | null }).getElementById('answer-feedback')?.scrollIntoView?.({
+                behavior: 'smooth',
+                block: 'center',
+              });
+            }
+          } catch {}
+        },
+        120
+      );
     } catch (e) {
       console.error('check error', e);
       Taro.showToast({ title: '提交失败，请重试', icon: 'none' });
@@ -324,6 +449,15 @@ export default function IndexPage() {
         </Badge>
       </View>
 
+      {/* 我的词单入口 */}
+      {(step === 'upload' || step === 'review') && (
+        <View className="mb-4">
+          <Button variant="outline" className="w-full" onClick={openBank}>
+            从我的词单开始默写
+          </Button>
+        </View>
+      )}
+
       {/* 上传 / 识别 / 浏览单词 */}
       {(step === 'upload' || step === 'recognizing' || step === 'review') && (
         <View>
@@ -337,6 +471,12 @@ export default function IndexPage() {
               </Text>
             </CardContent>
           </Card>
+
+          {step === 'upload' && (
+            <Button className="mb-4 w-full" variant="outline" onClick={openBank}>
+              从我的词单开始默写
+            </Button>
+          )}
 
           <Card>
             <CardContent className="p-5">
@@ -417,9 +557,61 @@ export default function IndexPage() {
                       英译中
                     </Button>
                   </View>
-                  <Button className="mt-4 w-full" size="lg" onClick={startQuiz}>
+
+                  <View className="mt-4">
+                    <Text className="mb-2 block text-sm font-semibold">默写范围</Text>
+                    <View className="flex flex-row gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        variant={sampleMode === 'all' ? 'default' : 'secondary'}
+                        onClick={() => setSampleMode('all')}
+                      >
+                        全量
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        variant={sampleMode === 'sample' ? 'default' : 'secondary'}
+                        onClick={() => setSampleMode('sample')}
+                      >
+                        抽查
+                      </Button>
+                    </View>
+                    {sampleMode === 'sample' && (
+                      <View className="mt-2 bg-muted rounded-lg px-3 py-2">
+                        <Input
+                          className="w-full bg-transparent"
+                          type="number"
+                          placeholder="抽查条数"
+                          value={sampleCount}
+                          onInput={(e) => setSampleCount(e.detail.value.replace(/\D/gi, ''))}
+                        />
+                      </View>
+                    )}
+                  </View>
+
+                  <Button className="mt-4 w-full" size="lg" onClick={() => startQuiz()}>
                     开始默写
                   </Button>
+
+                  <View className="mt-6 border-t border-muted pt-4">
+                    <Text className="mb-2 block text-sm font-semibold">保存为词单</Text>
+                    <Text className="mb-2 block text-xs text-muted-foreground">
+                      可自定义命名，之后可在「我的词单」多选合集默写
+                    </Text>
+                    <View className="bg-muted rounded-lg px-3 py-2">
+                      <Input
+                        className="w-full bg-transparent"
+                        placeholder="给这组词起个名称"
+                        value={bankName}
+                        onInput={(e) => setBankName(e.detail.value)}
+                      />
+                    </View>
+                    <Button className="mt-3 w-full" variant="outline" onClick={saveCurrentList} disabled={savingList}>
+                      {savingList ? '保存中…' : '保存为词单'}
+                    </Button>
+                  </View>
                 </View>
               )}
             </CardContent>
@@ -464,6 +656,110 @@ export default function IndexPage() {
         </View>
       )}
 
+      {/* 我的词单（多选合集默写） */}
+      {step === 'bank' && (
+        <View>
+          <View className="mb-4 flex flex-row items-center justify-between">
+            <Text className="block text-lg font-bold">我的词单</Text>
+            <Button size="sm" variant="ghost" onClick={() => setStep('upload')}>
+              返回
+            </Button>
+          </View>
+
+          {bankLoading ? (
+            <Text className="block text-sm text-muted-foreground">加载中…</Text>
+          ) : savedLists.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center p-8">
+                <Text className="block text-center text-sm text-muted-foreground">
+                  还没有保存的词单{'\n'}识别图片后即可保存，可多选合集默写
+                </Text>
+                <Button className="mt-4" onClick={() => setStep('upload')}>
+                  去上传识别
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <View className="flex flex-col gap-2">
+                {savedLists.map((l) => {
+                  const sel = selectedIds.includes(l.id);
+                  return (
+                    <Card key={l.id}>
+                      <CardContent className="p-4">
+                        <View className="flex flex-row items-center justify-between" onClick={() => toggleList(l.id)}>
+                          <View className="flex-1 pr-2">
+                            <Text className="block text-base font-semibold">{l.name}</Text>
+                            <Text className="block text-xs text-muted-foreground">{l.wordCount} 个单词</Text>
+                          </View>
+                          <View className="flex flex-row items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteSavedList(l.id);
+                              }}
+                            >
+                              删除
+                            </Button>
+                            <CircleCheck size={22} color={sel ? '#0f766e' : '#cbd5e1'} strokeWidth={1.6} />
+                          </View>
+                        </View>
+                        <View className="mt-2 flex flex-row flex-wrap gap-1">
+                          {l.words.slice(0, 5).map((w) => (
+                            <Badge key={w.en} variant={sel ? 'default' : 'secondary'}>
+                              {w.en}
+                            </Badge>
+                          ))}
+                        </View>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </View>
+
+              <View className="mt-5">
+                <Text className="mb-2 block text-sm font-semibold">默写范围</Text>
+                <View className="flex flex-row gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    variant={sampleMode === 'all' ? 'default' : 'secondary'}
+                    onClick={() => setSampleMode('all')}
+                  >
+                    全量
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    variant={sampleMode === 'sample' ? 'default' : 'secondary'}
+                    onClick={() => setSampleMode('sample')}
+                  >
+                    抽查
+                  </Button>
+                </View>
+                {sampleMode === 'sample' && (
+                  <View className="mt-2 bg-muted rounded-lg px-3 py-2">
+                    <Input
+                      className="w-full bg-transparent"
+                      type="number"
+                      placeholder="抽查条数"
+                      value={sampleCount}
+                      onInput={(e) => setSampleCount(e.detail.value.replace(/\D/gi, ''))}
+                    />
+                  </View>
+                )}
+              </View>
+
+              <Button className="mt-5 w-full" size="lg" disabled={!selectedIds.length} onClick={startFromBank}>
+                开始默写（已选 {selectedIds.length} 个词单）
+              </Button>
+            </>
+          )}
+        </View>
+      )}
+
       {/* 默写答题 */}
       {step === 'quiz' && currentWord && (
         <View>
@@ -496,6 +792,7 @@ export default function IndexPage() {
 
               {feedback ? (
                 <View
+                  id="answer-feedback"
                   className={
                     feedback.correct
                       ? 'mt-4 rounded-xl bg-emerald-50 p-4'
@@ -585,7 +882,7 @@ export default function IndexPage() {
               <Text className="mt-2 block text-sm text-muted-foreground">
                 当前累计 {points} 积分
               </Text>
-              <Button className="mt-6 w-full" size="lg" onClick={startQuiz}>
+              <Button className="mt-6 w-full" size="lg" onClick={() => startQuiz()}>
                 <RotateCcw size={16} color="#0f766e" />
                 <Text>再默写一轮</Text>
               </Button>
