@@ -56,6 +56,13 @@ export class DictationController {
     return { status: 'success', data };
   }
 
+  @Post('points/reset')
+  @HttpCode(200)
+  async resetPoints(@Body() body: { password: string }) {
+    const data = await this.dictationService.resetPoints(body?.password);
+    return { status: 'success', data };
+  }
+
   @Post('check')
   @HttpCode(200)
   async check(@Body() body: CheckBody, @Req() req: Request) {

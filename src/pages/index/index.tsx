@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import Taro from '@tarojs/taro';
 import { Image, Text, View } from '@tarojs/components';
-import { Camera, CircleCheck, CircleX, Coins, RotateCcw, ScanLine } from 'lucide-react-taro';
+import { Camera, CircleCheck, CircleX, Coins, Lock, RotateCcw, ScanLine } from 'lucide-react-taro';
 import { Network } from '@/network';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface WordItem {
   en: string;
@@ -133,6 +134,10 @@ export default function IndexPage() {
   const [points, setPoints] = useState(0);
   const [deviceId] = useState<string>(() => getDeviceId());
 
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetPwd, setResetPwd] = useState('');
+  const [resetting, setResetting] = useState(false);
+
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bankLoading, setBankLoading] = useState(false);
@@ -155,6 +160,33 @@ export default function IndexPage() {
   useEffect(() => {
     refreshPoints();
   }, [refreshPoints]);
+
+  const handleResetPoints = async () => {
+    if (!resetPwd) {
+      Taro.showToast({ title: '请输入密码', icon: 'none' });
+      return;
+    }
+    setResetting(true);
+    try {
+      const res = await Network.request({
+        url: '/api/dictation/points/reset',
+        method: 'POST',
+        data: { password: resetPwd },
+      });
+      console.log('reset points resp:', res.data);
+      const body = res.data as ApiEnvelope<{ totalPoints: number }>;
+      setPoints(body?.data?.totalPoints ?? 0);
+      setResetOpen(false);
+      setResetPwd('');
+      Taro.showToast({ title: '积分已清零', icon: 'none' });
+    } catch (e) {
+      console.error('reset points failed', e);
+      const err = e as { data?: { message?: string } };
+      Taro.showToast({ title: err?.data?.message || '清零失败', icon: 'none' });
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const isH5 = Taro.getEnv() === Taro.ENV_TYPE.WEB;
 
@@ -904,10 +936,50 @@ export default function IndexPage() {
               >
                 换一张图片
               </Button>
+              <Button
+                className="mt-3 w-full"
+                variant="ghost"
+                onClick={() => {
+                  setResetPwd('');
+                  setResetOpen(true);
+                }}
+              >
+                <Lock size={14} color="#6b7280" />
+                <Text className="text-muted-foreground">积分清零</Text>
+              </Button>
             </CardContent>
           </Card>
         </View>
       )}
+
+      {/* 积分清零确认弹窗 */}
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="block text-base font-semibold">积分清零确认</DialogTitle>
+          </DialogHeader>
+          <Text className="block text-sm text-muted-foreground">
+            清零后当前累计积分、答对题数将归零，此操作不可恢复。请输入确认密码：
+          </Text>
+          <View className="mt-3 rounded-xl bg-muted px-3 py-2">
+            <Input
+              className="w-full bg-transparent"
+              password
+              placeholder="请输入确认密码"
+              value={resetPwd}
+              onInput={(e) => setResetPwd(e.detail.value)}
+            />
+          </View>
+          <DialogFooter className="mt-4 flex flex-row gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setResetOpen(false)}>
+              取消
+            </Button>
+            <Button className="flex-1" disabled={resetting} onClick={handleResetPoints}>
+              {resetting ? '清零中…' : '确认清零'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </View>
   );
 }

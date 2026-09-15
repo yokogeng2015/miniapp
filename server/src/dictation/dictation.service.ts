@@ -28,6 +28,8 @@ interface LLMMessage {
 const POINTS_PER_CORRECT = 10;
 // 积分全局共享：所有设备共用同一条累计记录，实现跨端同步
 const GLOBAL_POINTS_ID = 'global_points_shared';
+// 积分清零确认密码
+const RESET_PASSWORD = '1234';
 const OCR_MODEL = 'doubao-seed-2-0-pro-260215';
 const JUDGE_MODEL = 'doubao-seed-2-0-lite-260215';
 
@@ -144,6 +146,30 @@ export class DictationService {
       correctCount: data?.correct_count ?? 0,
       totalCount: data?.total_count ?? 0,
     };
+  }
+
+  // 积分清零（需密码确认）
+  async resetPoints(password: string): Promise<{ totalPoints: number }> {
+    if (!password || password !== RESET_PASSWORD) {
+      throw new BadRequestException('密码错误，无法清零');
+    }
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from('study_users')
+      .update({
+        total_points: 0,
+        correct_count: 0,
+        total_count: 0,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('device_id', GLOBAL_POINTS_ID)
+      .select('total_points')
+      .single();
+    if (error) {
+      console.error('[dictation] reset points error', error.message);
+      throw new BadRequestException('积分清零失败');
+    }
+    return { totalPoints: data?.total_points ?? 0 };
   }
 
   async saveWordlist(body: { deviceId: string; name: string; words: { en: string; zh: string }[] }) {
