@@ -132,6 +132,8 @@ export default function IndexPage() {
   const [checking, setChecking] = useState(false);
 
   const [points, setPoints] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
   const [deviceId] = useState<string>(() => getDeviceId());
 
   const [resetOpen, setResetOpen] = useState(false);
@@ -150,8 +152,10 @@ export default function IndexPage() {
     try {
       const res = await Network.request({ url: `/api/dictation/points?deviceId=${deviceId}` });
       console.log('points body:', res.data);
-      const body = res.data as ApiEnvelope<{ totalPoints: number }>;
+      const body = res.data as ApiEnvelope<{ totalPoints: number; correctCount?: number; totalCount?: number }>;
       setPoints(body?.data?.totalPoints ?? 0);
+      setCorrectCount(body?.data?.correctCount ?? 0);
+      setTotalCount(body?.data?.totalCount ?? 0);
     } catch (e) {
       console.error('load points failed', e);
     }
@@ -176,6 +180,8 @@ export default function IndexPage() {
       console.log('reset points resp:', res.data);
       const body = res.data as ApiEnvelope<{ totalPoints: number }>;
       setPoints(body?.data?.totalPoints ?? 0);
+      setCorrectCount(0);
+      setTotalCount(0);
       setResetOpen(false);
       setResetPwd('');
       Taro.showToast({ title: '积分已清零', icon: 'none' });
@@ -923,6 +929,16 @@ export default function IndexPage() {
                   答对 {sessionCorrect} / {total} 题
                 </Text>
               </View>
+              <View className="mt-4 flex flex-row gap-3">
+                <View className="flex flex-1 flex-col items-center rounded-xl bg-sky-100 px-3 py-3">
+                  <Text className="block text-xl font-bold text-sky-800">{totalCount}</Text>
+                  <Text className="mt-1 block text-xs text-sky-800">总答题数量</Text>
+                </View>
+                <View className="flex flex-1 flex-col items-center rounded-xl bg-sky-100 px-3 py-3">
+                  <Text className="block text-xl font-bold text-sky-800">{correctCount}</Text>
+                  <Text className="mt-1 block text-xs text-sky-800">总答对数量</Text>
+                </View>
+              </View>
               <View className="mt-4 flex flex-row items-center justify-center gap-2">
                 <Coins size={20} color="#f59e0b" />
                 <Text className="block text-lg font-semibold text-amber-700">
@@ -962,6 +978,16 @@ export default function IndexPage() {
           <View className="mt-2 flex flex-col items-center py-2">
             <Text className="block text-3xl font-bold text-amber-600">{points}</Text>
             <Text className="mt-1 block text-sm text-muted-foreground">当前累计积分</Text>
+          </View>
+          <View className="mt-3 flex flex-row gap-3">
+            <View className="flex flex-1 flex-col items-center rounded-xl bg-sky-100 px-3 py-4">
+              <Text className="block text-2xl font-bold text-sky-800">{totalCount}</Text>
+              <Text className="mt-1 block text-xs text-sky-800">总答题数量</Text>
+            </View>
+            <View className="flex flex-1 flex-col items-center rounded-xl bg-sky-100 px-3 py-4">
+              <Text className="block text-2xl font-bold text-sky-800">{correctCount}</Text>
+              <Text className="mt-1 block text-xs text-sky-800">总答对数量</Text>
+            </View>
           </View>
           <View className="mt-3 rounded-xl border border-border p-4">
             <Text className="mb-2 block text-sm font-semibold">积分清零</Text>
