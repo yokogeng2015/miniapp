@@ -31,13 +31,54 @@ function genDeviceId(): string {
   return `dev-${id}`;
 }
 
-// 安全解析可能是 JSON 字符串的后端响应（微信 uploadFile 返回 String）
-function parseJson<T>(raw: string): T {
+// 安全解析可能是 JSON 字符串的后端响应（微信/抖音 uploadFile 返回 String）
+function tryParse(s: string): unknown {
   try {
-    return JSON.parse(raw) as T;
+    return JSON.parse(s);
   } catch {
-    return {} as T;
+    return null;
   }
+}
+
+// 从 uploadFile/request 的响应中递归提取识别单词数组，兼容小程序端多样的返回结构
+function resolveRecognizedWords(raw: unknown): WordItem[] {
+  if (raw == null) return [];
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    const obj = tryParse(trimmed);
+    if (obj) return resolveRecognizedWords(obj);
+    // 若字符串里内嵌了 JSON 对象（前后可能有其他文字），提取对象子串再解析
+    const s = trimmed.indexOf('{');
+    const e = trimmed.lastIndexOf('}');
+    if (s >= 0 && e > s) {
+      const obj2 = tryParse(trimmed.slice(s, e + 1));
+      if (obj2) return resolveRecognizedWords(obj2);
+    }
+    return [];
+  }
+  if (Array.isArray(raw)) {
+    return raw.filter(
+      (x): x is WordItem =>
+        !!x && typeof x === 'object' && typeof (x as WordItem).en === 'string' && typeof (x as WordItem).zh === 'string',
+    );
+  }
+  if (typeof raw === 'object') {
+    const b = raw as Record<string, any>;
+    const candidates: unknown[] = [
+      b?.data?.words,
+      b?.words,
+      b?.result?.words,
+      b?.data?.result?.words,
+      b?.list,
+      b?.recognized,
+    ];
+    for (const c of candidates) {
+      const w = resolveRecognizedWords(c);
+      if (w.length) return w;
+    }
+  }
+  return [];
 }
 
 function getDeviceId(): string {
@@ -159,14 +200,12 @@ export default function IndexPage() {
           filePath: imagePath,
           name: 'file',
         });
-        // 微信/抖音小程序端 Taro.uploadFile 的 res.data 是 JSON 字符串，需手动解析为对象
-        const raw = res.data as unknown;
-        const body = (
-          typeof raw === 'string' ? parseJson<ApiEnvelope<{ words: WordItem[] }>>(raw) : raw
-        ) as ApiEnvelope<{ words: WordItem[] }>;
-        const recognized: WordItem[] = body?.data?.words ?? [];
-        if (!recognized.length)
-          throw new Error((body as { message?: string })?.message || '未识别到单词');
+        // 微信/抖音小程序端 Taro.uploadFile 的 res.data 是 JSON 字符串，需兼容解析
+        const recognized = resolveRecognizedWords(res.data);
+        if (recognized.length) return recognized;
+        // 未解析出单词时打印原始响应，便于定位小程序端返回结构
+        console.log('[recognize] miniprogram raw upload resp =', res.data);
+        throw new Error('未识别到单词，请检查上传后重试');
         return recognized;
       } catch (e) {
         lastErr = e;
