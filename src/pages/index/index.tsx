@@ -116,6 +116,8 @@ export default function IndexPage() {
   const [feedback, setFeedback] = useState<{
     correct: boolean;
     reference: string;
+    explanation: string;
+    acceptedAlternative?: boolean;
     pointsAwarded: number;
   } | null>(null);
   const [checking, setChecking] = useState(false);
@@ -268,6 +270,8 @@ export default function IndexPage() {
         res.data as ApiEnvelope<{
           correct: boolean;
           reference: string;
+          explanation: string;
+          acceptedAlternative: boolean;
           pointsAwarded: number;
           totalPoints: number;
         }>
@@ -275,6 +279,8 @@ export default function IndexPage() {
       setFeedback({
         correct: !!d?.correct,
         reference: d?.reference ?? '',
+        explanation: d?.explanation ?? '',
+        acceptedAlternative: !!d?.acceptedAlternative,
         pointsAwarded: d?.pointsAwarded ?? 0,
       });
       if (d?.correct) {
@@ -520,6 +526,22 @@ export default function IndexPage() {
                       获得 {feedback.pointsAwarded} 积分
                     </Text>
                   )}
+                  {feedback.acceptedAlternative && (
+                    <Text className="mt-1 block text-xs text-emerald-600">
+                      你用了同义表达，语义正确，已按正确计分
+                    </Text>
+                  )}
+                  {feedback.explanation ? (
+                    <Text
+                      className={
+                        feedback.correct
+                          ? 'mt-2 block text-sm text-emerald-800'
+                          : 'mt-2 block text-sm text-red-700'
+                      }
+                    >
+                      {feedback.explanation}
+                    </Text>
+                  ) : null}
                   <Button className="mt-3 w-full" onClick={nextQuestion}>
                     {quizIndex + 1 >= total ? '查看成绩' : '下一题'}
                   </Button>

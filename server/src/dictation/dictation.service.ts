@@ -11,6 +11,8 @@ export interface WordItem {
 export interface CheckResult {
   correct: boolean;
   reference: string;
+  explanation?: string;
+  acceptedAsAlternative?: boolean;
   pointsAwarded: number;
   totalPoints: number;
 }
@@ -35,6 +37,12 @@ const OCR_SYSTEM_PROMPT = `你是专注的单词识别助手。图片可能是�
 4. 去除重复项。
 5. 最多返回 20 项。
 只输出一个 JSON 数组，格式：[{"en":"单词","zh":"释义"}]。若没有可用单词，输出 []。禁止输出 JSON 之外的任何字符或解释。`;
+
+// 判断是否为单个英文单词（不含空格、非中文）：用于区分“单词默写”与“短语/句子翻译”
+function isSingleWord(s: string): boolean {
+  const t = (s || '').trim();
+  return t.length > 0 && !/[\s\u4e00-\u9fa5]/.test(t) && /^[a-zA-Z]+(?:['-][a-zA-Z]+)*$/.test(t);
+}
 
 function normalizeWords(p: unknown): WordItem[] {
   const arr = Array.isArray(p)
@@ -152,26 +160,30 @@ export class DictationService {
     if (!answer) throw new BadRequestException('请填写答案');
 
     const reference = mode === 'zh2en' ? en : zh;
-    const prompt =
-      mode === 'zh2en'
-        ? `题目要求：根据中文释义写出生对应的英文单词。\n题目：${zh}\n标准答案：${en}\n用户作答：${answer}\n判断用户作答是否可接受：可以是标准答案本身，也可以是意思正确、拼写合理的同义英文单词/短语。错误拼写或意思不符则不可接受。`
-        : `题目要求：根据英文单词写出其中文意思。\n题目：${en}\n标准答案：${zh}\n用户作答：${answer}\n判断用户作答是否可接受：可以是标准答案本身，也可以是意思正确、表述合理的同义中文表达。意思不符则不可接受。`;
+    // 中译英且标准答案是单个英文单词 → “单词默写”，必须与题库词条完全一致
+    const isWordDictation = mode === 'zh2en' && isSingleWord(en);
 
-    const client = this.createClient(customHeaders);
-    const messages: LLMMessage[] = [
-      {
-        role: 'user',
-        content: `${prompt}\n只输出一个 JSON 对象：{"correct": true 或 false}，不要输出其他内容。`,
-      },
-    ];
-    const resp = await client.invoke(messages, { model: JUDGE_MODEL, temperature: 0.1 });
-    const text = (resp.content || '').replace(/```json/gi, '').replace(/```/g, '').trim();
     let correct = false;
-    try {
-      const matched = text.match(/"correct"\s*:\s*(true|false)/i);
-      correct = matched ? matched[1].toLowerCase() === 'true' : text.includes('"correct": true');
-    } catch {
-      correct = false;
+    let explanation = '';
+    let acceptedAsAlternative = false;
+
+    if (isWordDictation) {
+      const normAns = (answer || '').trim().toLowerCase();
+      const normEn = (en || '').trim().toLowerCase();
+      correct = normAns === normEn;
+      explanation = correct
+        ? `默写正确 ✅，与题库单词「${en}」一致。`
+        : `这是“单词默写”，答案必须与题库中的单词完全一致（大小写不区分）。标准答案是「${en}」，而你写的是「${(answer || '').trim()}」。`;
+    } else {
+      // 短语/句子中译英，或英译中 → 语义判题，并给出解释
+      const prompt =
+        mode === 'zh2en'
+          ? `题目要求：根据中文释义写出对应的英文表达（可为单词或常考短语）。\n题目：${zh}\n参考表达：${en}\n用户作答：${answer}\n判断用户作答是否可接受：凡是意思、语法正确且表达自然（包括同义短语、近义说法）均算可接受；若不可接受，请用简短中文解释具体原因（为什么这样说不自然/不正确，以及怎样更接近正确表达）。`
+          : `题目要求：根据英文写出其中文意思。\n题目：${en}\n参考表达：${zh}\n用户作答：${answer}\n判断用户作答是否可接受：意思是正确的中文表达（允许同义换说法）均算可接受；若不可接受，请用简短中文解释具体原因（哪里意思不符，更合适的中文措辞是什么）。`;
+      const judge = await this.llmJudge(prompt, customHeaders);
+      correct = judge.correct;
+      explanation = judge.explanation || '';
+      acceptedAsAlternative = judge.acceptedAsAlternative;
     }
 
     let totalPoints = 0;
@@ -184,9 +196,44 @@ export class DictationService {
     return {
       correct,
       reference,
+      explanation,
+      acceptedAsAlternative,
       pointsAwarded: correct ? POINTS_PER_CORRECT : 0,
       totalPoints,
     };
+  }
+
+  private async llmJudge(
+    prompt: string,
+    customHeaders: Record<string, string>,
+  ): Promise<{ correct: boolean; explanation: string; acceptedAsAlternative: boolean }> {
+    const client = this.createClient(customHeaders);
+    const messages: LLMMessage[] = [
+      {
+        role: 'user',
+        content: `${prompt}\n只输出一个 JSON 对象，格式：{"correct": true 或 false, "explanation": "简短中文解释"}，不要输出其他内容。`,
+      },
+    ];
+    const resp = await client.invoke(messages, { model: JUDGE_MODEL, temperature: 0.1 });
+    const text = (resp.content || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+
+    let correct = false;
+    try {
+      const matched = text.match(/"correct"\s*:\s*(true|false)/i);
+      correct = matched ? matched[1].toLowerCase() === 'true' : text.includes('"correct": true');
+    } catch {
+      correct = false;
+    }
+
+    let explanation = '';
+    try {
+      const em = text.match(/"explanation"\s*:\s*"((?:[^"\\]|\\.)*)"/m);
+      if (em) explanation = em[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\').trim();
+    } catch {
+      explanation = '';
+    }
+
+    return { correct, explanation, acceptedAsAlternative: correct && explanation.length > 0 };
   }
 
   private async awardResult(deviceId: string, correct: boolean): Promise<number> {
