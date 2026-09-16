@@ -58,15 +58,20 @@ function normalizeWords(p: unknown): WordItem[] {
     ? (p as { words: unknown[] }).words
     : null;
   if (!arr) return [];
-  return arr
-    .map((w) => {
-      const o = (w ?? {}) as Record<string, unknown>;
-      return {
-        en: String(o.en ?? o.word ?? '').trim(),
-        zh: String(o.zh ?? o.meaning ?? '').trim(),
-      };
-    })
-    .filter((w) => w.en && w.zh);
+  // 荧光笔/重复扫描会产生相同词条，按英文（忽略大小写与空白）自动去重，保留首次出现
+  const seen = new Set<string>();
+  const result: WordItem[] = [];
+  for (const raw of arr) {
+    const o = (raw ?? {}) as Record<string, unknown>;
+    const en = String(o.en ?? o.word ?? '').trim();
+    const zh = String(o.zh ?? o.meaning ?? '').trim();
+    if (!en || !zh) continue;
+    const key = en.replace(/\s+/g, ' ').toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ en, zh });
+  }
+  return result;
 }
 
 function extractJsonArray(text: unknown): WordItem[] {

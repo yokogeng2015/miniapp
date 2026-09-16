@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Taro from '@tarojs/taro';
 import { Image, Text, View } from '@tarojs/components';
-import { Camera, CircleCheck, CircleX, Coins, Pencil, RotateCcw, ScanLine } from 'lucide-react-taro';
+import { Camera, CircleCheck, CircleX, Coins, Pencil, RotateCcw, ScanLine, Trash2 } from 'lucide-react-taro';
 import { Network } from '@/network';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -330,6 +330,22 @@ export default function IndexPage() {
     setEditOpen(false);
   };
 
+  // 删除单个词条（荧光笔扫描可能产生重复），删除前确认
+  const deleteWord = (idx: number) => {
+    Taro.showModal({
+      title: '删除词条',
+      content: `确定删除「${words[idx]?.en || ''}」吗？`,
+      confirmText: '删除',
+      confirmColor: '#e92e6f',
+      success: (res) => {
+        if (res.confirm) {
+          setWords((prev) => prev.filter((_, i) => i !== idx));
+          Taro.showToast({ title: '已删除', icon: 'success' });
+        }
+      },
+    });
+  };
+
   const startQuiz = (pool?: WordItem[]) => {
     let source = pool && pool.length ? pool : words;
     if (!source.length) {
@@ -644,14 +660,22 @@ export default function IndexPage() {
                           <Text className="block text-sm font-semibold">{w.en}</Text>
                           <Text className="block text-sm text-muted-foreground">{w.zh}</Text>
                         </View>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="shrink-0"
-                          onClick={() => handleStartEdit(idx)}
-                        >
-                          <Pencil size={14} color="#e92e6f" />
-                        </Button>
+                        <View className="flex shrink-0 flex-row items-center">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleStartEdit(idx)}
+                          >
+                            <Pencil size={14} color="#e92e6f" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteWord(idx)}
+                          >
+                            <Trash2 size={15} color="#d11a4d" />
+                          </Button>
+                        </View>
                       </View>
                     ))}
                   </View>
@@ -1154,7 +1178,26 @@ export default function IndexPage() {
               />
             </View>
           </View>
-          <DialogFooter className="mt-4">
+          <View
+            className="mt-4 flex flex-row items-center justify-center gap-1"
+            style={{ alignSelf: 'flex-start' }}
+          >
+            <Trash2 size={15} color="#d11a4d" />
+            <Text
+              className="block text-sm"
+              style={{ color: '#d11a4d' }}
+              onClick={() => {
+                if (editIdx >= 0) {
+                  const i = editIdx;
+                  setEditOpen(false);
+                  deleteWord(i);
+                }
+              }}
+            >
+              删除此词条
+            </Text>
+          </View>
+          <DialogFooter className="mt-3">
             <Button variant="outline" className="w-full" onClick={() => setEditOpen(false)}>
               取消
             </Button>
