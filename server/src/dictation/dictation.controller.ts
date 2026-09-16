@@ -63,6 +63,18 @@ export class DictationController {
     return { status: 'success', data };
   }
 
+  @Post('points/set')
+  @HttpCode(200)
+  async setPoints(@Body() body: {
+    password?: string;
+    totalPoints?: number;
+    correctCount?: number;
+    totalCount?: number;
+  }) {
+    const data = await this.dictationService.setPoints(body);
+    return { status: 'success', data };
+  }
+
   @Post('check')
   @HttpCode(200)
   async check(@Body() body: CheckBody, @Req() req: Request) {

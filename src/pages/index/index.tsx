@@ -139,6 +139,9 @@ export default function IndexPage() {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetPwd, setResetPwd] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [setPointsInput, setSetPointsInput] = useState('');
+  const [setCorrectInput, setSetCorrectInput] = useState('');
+  const [setTotalInput, setSetTotalInput] = useState('');
 
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -165,30 +168,43 @@ export default function IndexPage() {
     refreshPoints();
   }, [refreshPoints]);
 
-  const handleResetPoints = async () => {
+  const handleSetPoints = async () => {
     if (!resetPwd) {
       Taro.showToast({ title: '请输入密码', icon: 'none' });
       return;
     }
+    if (!setPointsInput) {
+      Taro.showToast({ title: '请输入新的积分', icon: 'none' });
+      return;
+    }
+    const toNum = (s: string) => (s === '' || s === undefined ? undefined : Number(s));
     setResetting(true);
     try {
       const res = await Network.request({
-        url: '/api/dictation/points/reset',
+        url: '/api/dictation/points/set',
         method: 'POST',
-        data: { password: resetPwd },
+        data: {
+          password: resetPwd,
+          totalPoints: toNum(setPointsInput),
+          correctCount: setCorrectInput === '' ? undefined : toNum(setCorrectInput),
+          totalCount: setTotalInput === '' ? undefined : toNum(setTotalInput),
+        },
       });
-      console.log('reset points resp:', res.data);
-      const body = res.data as ApiEnvelope<{ totalPoints: number }>;
+      console.log('set points resp:', res.data);
+      const body = res.data as ApiEnvelope<{ totalPoints: number; correctCount: number; totalCount: number }>;
       setPoints(body?.data?.totalPoints ?? 0);
-      setCorrectCount(0);
-      setTotalCount(0);
+      setCorrectCount(body?.data?.correctCount ?? 0);
+      setTotalCount(body?.data?.totalCount ?? 0);
       setResetOpen(false);
       setResetPwd('');
-      Taro.showToast({ title: '积分已清零', icon: 'none' });
+      setSetPointsInput('');
+      setSetCorrectInput('');
+      setSetTotalInput('');
+      Taro.showToast({ title: '积分已更新', icon: 'none' });
     } catch (e) {
-      console.error('reset points failed', e);
+      console.error('set points failed', e);
       const err = e as { data?: { message?: string } };
-      Taro.showToast({ title: err?.data?.message || '清零失败', icon: 'none' });
+      Taro.showToast({ title: err?.data?.message || '修改失败', icon: 'none' });
     } finally {
       setResetting(false);
     }
@@ -990,21 +1006,48 @@ export default function IndexPage() {
             </View>
           </View>
           <View className="mt-3 rounded-xl border border-border p-4">
-            <Text className="mb-2 block text-sm font-semibold">积分清零</Text>
+            <Text className="mb-1 block text-sm font-semibold">手动修改积分</Text>
             <Text className="block text-xs text-muted-foreground">
-              输入确认密码（1234）即可清零累计积分，此操作不可恢复。
+              填写目标积分（必填）。总答题/总答对数量留空则保持当前值。
             </Text>
-            <View className="mt-3 rounded-xl bg-muted px-3 py-2">
+            <View className="mt-2 rounded-xl bg-muted px-3 py-2">
+              <Input
+                className="w-full bg-transparent"
+                type="number"
+                placeholder="积分（必填）"
+                value={setPointsInput}
+                onInput={(e) => setSetPointsInput(e.detail.value)}
+              />
+            </View>
+            <View className="mt-2 rounded-xl bg-muted px-3 py-2">
+              <Input
+                className="w-full bg-transparent"
+                type="number"
+                placeholder="总答对数量（留空不变）"
+                value={setCorrectInput}
+                onInput={(e) => setSetCorrectInput(e.detail.value)}
+              />
+            </View>
+            <View className="mt-2 rounded-xl bg-muted px-3 py-2">
+              <Input
+                className="w-full bg-transparent"
+                type="number"
+                placeholder="总答题数量（留空不变）"
+                value={setTotalInput}
+                onInput={(e) => setSetTotalInput(e.detail.value)}
+              />
+            </View>
+            <View className="mt-2 rounded-xl bg-muted px-3 py-2">
               <Input
                 className="w-full bg-transparent"
                 password
-                placeholder="请输入确认密码"
+                placeholder="请输入密码"
                 value={resetPwd}
                 onInput={(e) => setResetPwd(e.detail.value)}
               />
             </View>
-            <Button className="mt-3 w-full" variant="destructive" disabled={resetting} onClick={handleResetPoints}>
-              {resetting ? '清零中…' : '确认清零'}
+            <Button className="mt-3 w-full" variant="destructive" disabled={resetting} onClick={handleSetPoints}>
+              {resetting ? '保存中…' : '确认修改'}
             </Button>
           </View>
           <DialogFooter className="mt-4">
