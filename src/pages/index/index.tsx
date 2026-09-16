@@ -539,20 +539,30 @@ export default function IndexPage() {
       {/* 上传 / 识别 / 浏览单词 */}
       {(step === 'upload' || step === 'recognizing' || step === 'review') && (
         <View>
-          <Card className="mb-5 border-none bg-primary text-primary-foreground">
-            <CardContent className="p-6">
-              <View className="flex flex-row gap-4">
-                <View className="flex-1 rounded-2xl bg-white p-4 opacity-90">
-                  <Text className="block text-sm text-primary">总答题数量</Text>
-                  <Text className="block text-2xl font-bold text-primary">{totalCount}</Text>
-                </View>
-                <View className="flex-1 rounded-2xl bg-white p-4 opacity-90">
-                  <Text className="block text-sm text-primary">总答对数量</Text>
-                  <Text className="block text-2xl font-bold text-primary">{correctCount}</Text>
-                </View>
+          <View
+            className="mb-5 rounded-3xl px-6 py-6 text-white shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #ff5e8a 0%, #e92e6f 55%, #c11a63 100%)' }}
+          >
+            <View className="mb-4 flex flex-row items-center justify-between">
+              <View>
+                <Text className="block text-lg font-bold text-white">单词听写</Text>
+                <Text className="block text-xs text-white opacity-80">拍图识词 · 随拍随默</Text>
               </View>
-            </CardContent>
-          </Card>
+              <View className="rounded-full px-3 py-1" style={{ backgroundColor: 'rgba(255,255,255,0.22)' }}>
+                <Text className="text-xs font-medium text-white">学习进度</Text>
+              </View>
+            </View>
+            <View className="flex flex-row gap-3">
+              <View className="flex-1 rounded-2xl bg-white p-4">
+                <Text className="block text-xs text-gray-400">总答题数量</Text>
+                <Text className="block text-2xl font-bold text-primary">{totalCount}</Text>
+              </View>
+              <View className="flex-1 rounded-2xl bg-white p-4">
+                <Text className="block text-xs text-gray-400">总答对数量</Text>
+                <Text className="block text-2xl font-bold text-primary">{correctCount}</Text>
+              </View>
+            </View>
+          </View>
 
           <Card>
             <CardContent className="p-5">
