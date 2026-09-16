@@ -503,6 +503,7 @@ export default function IndexPage() {
 
   return (
     <View className="min-h-screen bg-background px-4 py-6">
+      <View className="mx-auto w-full max-w-2xl">
       {/* 顶部积分栏 */}
       <View className="mb-5 flex flex-row items-center justify-between">
         <View className="flex flex-row items-center gap-2">
@@ -1096,6 +1097,7 @@ export default function IndexPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </View>
     </View>
   );
 }
