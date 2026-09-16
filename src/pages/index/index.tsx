@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Taro from '@tarojs/taro';
 import { Image, Text, View } from '@tarojs/components';
-import { Camera, CircleCheck, CircleX, Coins, RotateCcw, ScanLine } from 'lucide-react-taro';
+import { Camera, CircleCheck, CircleX, Coins, Pencil, RotateCcw, ScanLine } from 'lucide-react-taro';
 import { Network } from '@/network';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -142,6 +142,11 @@ export default function IndexPage() {
   const [setPointsInput, setSetPointsInput] = useState('');
   const [setCorrectInput, setSetCorrectInput] = useState('');
   const [setTotalInput, setSetTotalInput] = useState('');
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editIdx, setEditIdx] = useState(-1);
+  const [editEn, setEditEn] = useState('');
+  const [editZh, setEditZh] = useState('');
 
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -305,6 +310,24 @@ export default function IndexPage() {
       Taro.showToast({ title: errMsg, icon: 'none' });
       setStep('upload');
     }
+  };
+
+  const handleStartEdit = (idx: number) => {
+    setEditIdx(idx);
+    setEditEn(words[idx]?.en ?? '');
+    setEditZh(words[idx]?.zh ?? '');
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    const en = editEn.trim();
+    const zh = editZh.trim();
+    if (!en) {
+      Taro.showToast({ title: '英文不能为空', icon: 'none' });
+      return;
+    }
+    setWords((prev) => prev.map((w, i) => (i === editIdx ? { en, zh } : w)));
+    setEditOpen(false);
   };
 
   const startQuiz = (pool?: WordItem[]) => {
@@ -617,8 +640,18 @@ export default function IndexPage() {
                         key={idx}
                         className="flex flex-row items-center justify-between rounded-lg bg-muted px-3 py-2"
                       >
-                        <Text className="block text-sm font-semibold">{w.en}</Text>
-                        <Text className="block text-sm text-muted-foreground">{w.zh}</Text>
+                        <View className="flex-1 pr-2">
+                          <Text className="block text-sm font-semibold">{w.en}</Text>
+                          <Text className="block text-sm text-muted-foreground">{w.zh}</Text>
+                        </View>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="shrink-0"
+                          onClick={() => handleStartEdit(idx)}
+                        >
+                          <Pencil size={14} color="#e92e6f" />
+                        </Button>
                       </View>
                     ))}
                   </View>
@@ -1093,6 +1126,40 @@ export default function IndexPage() {
           <DialogFooter className="mt-4">
             <Button variant="outline" className="w-full" onClick={() => setResetOpen(false)}>
               关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={(v) => setEditOpen(!!v)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑词条</DialogTitle>
+          </DialogHeader>
+          <View className="flex flex-col gap-3">
+            <View className="rounded-xl bg-muted px-3 py-1">
+              <Input
+                style={{ width: '100%', fontSize: '16px', padding: '10px 0' }}
+                value={editEn}
+                onInput={(e) => setEditEn(e.detail.value)}
+                placeholder="英文（单词或短语）"
+              />
+            </View>
+            <View className="rounded-xl bg-muted px-3 py-1">
+              <Input
+                style={{ width: '100%', fontSize: '16px', padding: '10px 0' }}
+                value={editZh}
+                onInput={(e) => setEditZh(e.detail.value)}
+                placeholder="中文释义"
+              />
+            </View>
+          </View>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" className="w-full" onClick={() => setEditOpen(false)}>
+              取消
+            </Button>
+            <Button className="mt-2 w-full" onClick={handleSaveEdit}>
+              保存
             </Button>
           </DialogFooter>
         </DialogContent>
