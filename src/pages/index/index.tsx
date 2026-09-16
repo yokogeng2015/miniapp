@@ -541,12 +541,16 @@ export default function IndexPage() {
         <View>
           <Card className="mb-5 border-none bg-primary text-primary-foreground">
             <CardContent className="p-6">
-              <Text className="block text-xl font-bold leading-relaxed">
-                拍下单词，随拍随默
-              </Text>
-              <Text className="mt-2 block text-sm opacity-90 leading-relaxed">
-                上传一张英语单词图片，识别后即可开始中译英 / 英译中默写，答对每题获得积分奖励。
-              </Text>
+              <View className="flex flex-row gap-4">
+                <View className="flex-1 rounded-2xl bg-white p-4 opacity-90">
+                  <Text className="block text-sm text-primary">总答题数量</Text>
+                  <Text className="block text-2xl font-bold text-primary">{totalCount}</Text>
+                </View>
+                <View className="flex-1 rounded-2xl bg-white p-4 opacity-90">
+                  <Text className="block text-sm text-primary">总答对数量</Text>
+                  <Text className="block text-2xl font-bold text-primary">{correctCount}</Text>
+                </View>
+              </View>
             </CardContent>
           </Card>
 
@@ -995,14 +999,39 @@ export default function IndexPage() {
             <Text className="block text-3xl font-bold text-amber-600">{points}</Text>
             <Text className="mt-1 block text-sm text-muted-foreground">当前累计积分</Text>
           </View>
-          <View className="mt-3 flex flex-row gap-3">
-            <View className="flex flex-1 flex-col items-center rounded-xl bg-sky-100 px-3 py-4">
-              <Text className="block text-2xl font-bold text-sky-800">{totalCount}</Text>
-              <Text className="mt-1 block text-xs text-sky-800">总答题数量</Text>
+          <View className="mt-3 rounded-xl bg-sky-50 p-4">
+            <Text className="block text-sm font-semibold text-sky-900">积分里程碑</Text>
+            <Text className="mt-1 block text-xs text-sky-700">
+              当前 {Math.min(points, 20000)} / 20000 分
+            </Text>
+            <View className="mt-3 h-2 w-full overflow-hidden rounded-full bg-sky-200">
+              <View
+                className="h-full rounded-full bg-sky-600"
+                style={{ width: `${Math.min((points / 20000) * 100, 100)}%` }}
+              />
             </View>
-            <View className="flex flex-1 flex-col items-center rounded-xl bg-sky-100 px-3 py-4">
-              <Text className="block text-2xl font-bold text-sky-800">{correctCount}</Text>
-              <Text className="mt-1 block text-xs text-sky-800">总答对数量</Text>
+            <View className="mt-3 flex flex-col gap-1.5">
+              {[
+                { pts: 500, label: '迷你奖' },
+                { pts: 2000, label: '小奖' },
+                { pts: 5000, label: '普通奖' },
+                { pts: 10000, label: '进步奖' },
+                { pts: 20000, label: '终极大奖' },
+              ].map((m) => (
+                <View
+                  key={m.pts}
+                  className={`flex flex-row items-center justify-between rounded-lg px-3 py-2 ${
+                    points >= m.pts ? 'bg-sky-600' : 'bg-white'
+                  }`}
+                >
+                  <Text className={points >= m.pts ? 'block text-sm text-white' : 'block text-sm text-sky-800'}>
+                    {points >= m.pts ? '已达成' : '待达成'} · {m.pts} 分
+                  </Text>
+                  <Text className={points >= m.pts ? 'block text-sm font-semibold text-white' : 'block text-sm font-semibold text-sky-800'}>
+                    {m.label}
+                  </Text>
+                </View>
+              ))}
             </View>
           </View>
           <View className="mt-3 rounded-xl border border-border p-4">
