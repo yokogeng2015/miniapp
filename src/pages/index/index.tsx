@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Taro from '@tarojs/taro';
 import { Image, Text, View } from '@tarojs/components';
-import { Camera, CircleCheck, CircleX, Coins, Info, Pencil, RotateCcw, ScanLine, Trash2 } from 'lucide-react-taro';
+import { Camera, CircleCheck, CircleX, Coins, House, Info, Library, Pencil, RotateCcw, ScanLine, Trash2, TrendingUp } from 'lucide-react-taro';
 import { Network } from '@/network';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -136,7 +136,6 @@ export default function IndexPage() {
   const [correctCount, setCorrectCount] = useState(0);
   const [deviceId] = useState<string>(() => getDeviceId());
 
-  const [resetOpen, setResetOpen] = useState(false);
   const [resetPwd, setResetPwd] = useState('');
   const [resetting, setResetting] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -149,6 +148,7 @@ export default function IndexPage() {
   const [editEn, setEditEn] = useState('');
   const [editZh, setEditZh] = useState('');
 
+  const [activeTab, setActiveTab] = useState<'home' | 'words' | 'growth'>('home');
   const [savedLists, setSavedLists] = useState<SavedList[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bankLoading, setBankLoading] = useState(false);
@@ -201,7 +201,6 @@ export default function IndexPage() {
       setPoints(body?.data?.totalPoints ?? 0);
       setCorrectCount(body?.data?.correctCount ?? 0);
       setTotalCount(body?.data?.totalCount ?? 0);
-      setResetOpen(false);
       setResetPwd('');
       setSetPointsInput('');
       setSetCorrectInput('');
@@ -385,7 +384,7 @@ export default function IndexPage() {
   }, [deviceId]);
 
   const openBank = () => {
-    setStep('bank');
+    setActiveTab('words');
     loadSavedLists();
   };
 
@@ -463,6 +462,7 @@ export default function IndexPage() {
       return;
     }
     startQuiz(pool);
+    setActiveTab('home');
   };
 
   const currentWord = quizOrder.length ? words[quizOrder[quizIndex]] : null;
@@ -543,7 +543,7 @@ export default function IndexPage() {
 
   return (
     <View className="min-h-screen bg-background px-4 py-6">
-      <View className="mx-auto w-full max-w-2xl">
+      <View className="mx-auto w-full max-w-2xl pb-24">
       {/* 顶部成长值栏 */}
       <View className="mb-5 flex flex-row items-center justify-between">
         <View className="flex flex-row items-center gap-2">
@@ -555,7 +555,7 @@ export default function IndexPage() {
             className="rounded-full bg-secondary px-3 py-1"
             onClick={() => {
               setResetPwd('');
-              setResetOpen(true);
+              setActiveTab('growth');
             }}
           >
             <View className="flex flex-row items-center gap-1">
@@ -586,7 +586,7 @@ export default function IndexPage() {
       )}
 
       {/* 上传 / 识别 / 浏览单词 */}
-      {(step === 'upload' || step === 'recognizing' || step === 'review') && (
+      {activeTab === 'home' && (step === 'upload' || step === 'recognizing' || step === 'review') && (
         <View>
           <View
             className="mb-5 rounded-3xl px-6 py-6 text-white shadow-lg"
@@ -815,11 +815,11 @@ export default function IndexPage() {
       )}
 
       {/* 我的词单（多选合集默写） */}
-      {step === 'bank' && (
+      {activeTab === 'words' && (
         <View>
           <View className="mb-4 flex flex-row items-center justify-between">
             <Text className="block text-lg font-bold">我的词单</Text>
-            <Button size="sm" variant="ghost" onClick={() => setStep('upload')}>
+            <Button size="sm" variant="ghost" onClick={() => setActiveTab('home')}>
               返回
             </Button>
           </View>
@@ -832,7 +832,7 @@ export default function IndexPage() {
                 <Text className="block text-center text-sm text-muted-foreground">
                   还没有保存的词单{'\n'}识别图片后即可保存，可多选合集默写
                 </Text>
-                <Button className="mt-4" onClick={() => setStep('upload')}>
+                <Button className="mt-4" onClick={() => { setActiveTab('home'); setStep('upload'); }}>
                   去上传识别
                 </Button>
               </CardContent>
@@ -916,7 +916,7 @@ export default function IndexPage() {
       )}
 
       {/* 默写答题 */}
-      {step === 'quiz' && currentWord && (
+      {activeTab === 'home' && step === 'quiz' && currentWord && (
         <View>
           <Card className="mb-4">
             <CardContent className="p-5">
@@ -1035,7 +1035,7 @@ export default function IndexPage() {
       )}
 
       {/* 结果 */}
-      {step === 'result' && (
+      {activeTab === 'home' && step === 'result' && (
         <View>
           <Card className="mb-4 text-center">
             <CardContent className="p-8">
@@ -1086,13 +1086,16 @@ export default function IndexPage() {
         </View>
       )}
 
-      {/* 积分详情与清零弹窗 */}
-      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="block text-base font-semibold">我的成长值</DialogTitle>
-          </DialogHeader>
-          <View className="mt-2 flex flex-col items-center py-2">
+      {/* 我的成长值（独立视图） */}
+      {activeTab === 'growth' && (
+        <View>
+          <View className="mb-4 flex flex-row items-center justify-between">
+            <Text className="block text-lg font-bold">我的成长值</Text>
+            <Button size="sm" variant="ghost" onClick={() => setActiveTab('home')}>
+              返回首页
+            </Button>
+          </View>
+          <View className="mt-2 flex flex-col items-center rounded-2xl bg-card py-6 shadow-sm">
             <Text className="block text-3xl font-bold text-amber-600">{points}</Text>
             <Text className="mt-1 block text-sm text-muted-foreground">当前累计成长值</Text>
           </View>
@@ -1176,13 +1179,8 @@ export default function IndexPage() {
               {resetting ? '保存中…' : '确认修改'}
             </Button>
           </View>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" className="w-full" onClick={() => setResetOpen(false)}>
-              关闭
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </View>
+      )}
 
       <Dialog open={editOpen} onOpenChange={(v) => setEditOpen(!!v)}>
         <DialogContent>
@@ -1265,6 +1263,48 @@ export default function IndexPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 底部快速导航 */}
+      <View
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 200,
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          backgroundColor: '#ffffff',
+          borderTop: '0.5px solid #e5e5ea',
+          boxShadow: '0 -4px 16px rgba(0,0,0,0.06)',
+        }}
+      >
+        <View className="mx-auto flex w-full max-w-2xl flex-row items-center justify-around py-2">
+          {(
+            [
+              { key: 'home', label: '首页', icon: <House size={22} color={activeTab === 'home' ? '#e92e6f' : '#999'} /> },
+              { key: 'words', label: '我的单词', icon: <Library size={22} color={activeTab === 'words' ? '#e92e6f' : '#999'} /> },
+              { key: 'growth', label: '我的成长值', icon: <TrendingUp size={22} color={activeTab === 'growth' ? '#e92e6f' : '#999'} /> },
+            ] as const
+          ).map((tab) => (
+            <View
+              key={tab.key}
+              className="flex flex-col items-center px-6 py-1"
+              onClick={() => {
+                if (tab.key === 'words') openBank();
+                else setActiveTab(tab.key as 'home' | 'growth');
+              }}
+            >
+              {tab.icon}
+              <Text
+                className={`mt-1 block text-xs ${activeTab === tab.key ? 'font-semibold text-primary' : 'text-gray-400'}`}
+              >
+                {tab.label}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
       </View>
     </View>
   );
