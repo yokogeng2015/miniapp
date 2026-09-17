@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Taro from '@tarojs/taro';
 import { Image, Text, View } from '@tarojs/components';
-import { Camera, CircleCheck, CircleX, Coins, Pencil, RotateCcw, ScanLine, Trash2 } from 'lucide-react-taro';
+import { Camera, CircleCheck, CircleX, Coins, Info, Pencil, RotateCcw, ScanLine, Trash2 } from 'lucide-react-taro';
 import { Network } from '@/network';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -139,6 +139,7 @@ export default function IndexPage() {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetPwd, setResetPwd] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [setPointsInput, setSetPointsInput] = useState('');
   const [setCorrectInput, setSetCorrectInput] = useState('');
   const [setTotalInput, setSetTotalInput] = useState('');
@@ -179,7 +180,7 @@ export default function IndexPage() {
       return;
     }
     if (!setPointsInput) {
-      Taro.showToast({ title: '请输入新的积分', icon: 'none' });
+      Taro.showToast({ title: '请输入新的成长值', icon: 'none' });
       return;
     }
     const toNum = (s: string) => (s === '' || s === undefined ? undefined : Number(s));
@@ -205,7 +206,7 @@ export default function IndexPage() {
       setSetPointsInput('');
       setSetCorrectInput('');
       setSetTotalInput('');
-      Taro.showToast({ title: '积分已更新', icon: 'none' });
+      Taro.showToast({ title: '成长值已更新', icon: 'none' });
     } catch (e) {
       console.error('set points failed', e);
       const err = e as { data?: { message?: string } };
@@ -543,22 +544,30 @@ export default function IndexPage() {
   return (
     <View className="min-h-screen bg-background px-4 py-6">
       <View className="mx-auto w-full max-w-2xl">
-      {/* 顶部积分栏 */}
+      {/* 顶部成长值栏 */}
       <View className="mb-5 flex flex-row items-center justify-between">
         <View className="flex flex-row items-center gap-2">
           <ScanLine size={22} className="text-primary" color="#e92e6f" />
           <Text className="block text-lg font-bold text-primary">随拍默写</Text>
         </View>
-        <View
-          className="rounded-full bg-secondary px-3 py-1"
-          onClick={() => {
-            setResetPwd('');
-            setResetOpen(true);
-          }}
-        >
-          <View className="flex flex-row items-center gap-1">
-            <Coins size={14} color="#f59e0b" />
-            <Text className="text-xs font-semibold text-foreground">{points} 积分</Text>
+        <View className="flex flex-row items-center gap-2">
+          <View
+            className="rounded-full bg-secondary px-3 py-1"
+            onClick={() => {
+              setResetPwd('');
+              setResetOpen(true);
+            }}
+          >
+            <View className="flex flex-row items-center gap-1">
+              <Coins size={14} color="#f59e0b" />
+              <Text className="text-xs font-semibold text-foreground">{points} 成长值</Text>
+            </View>
+          </View>
+          <View
+            className="flex h-5 w-5 items-center justify-center rounded-full bg-muted"
+            onClick={() => setHelpOpen(true)}
+          >
+            <Info size={12} color="#6c6c70" />
           </View>
         </View>
       </View>
@@ -723,11 +732,8 @@ export default function IndexPage() {
                       </Button>
                     </View>
                     {sampleMode === 'sample' && (
-                      <View className="mt-2 bg-muted rounded-lg px-3 py-2">
-                        <Input
-                          className="w-full bg-transparent"
-                          type="number"
-                          placeholder="抽查条数"
+                      <View style={{ display: "flex", width: "100%", marginTop: "8px", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px" }}>
+                        <Input style={{ width: "100%", fontSize: "16px", lineHeight: "24px", padding: "12px 0", minHeight: "48px" }} type="number" placeholder="抽查条数"
                           value={sampleCount}
                           onInput={(e) => setSampleCount(e.detail.value.replace(/\D/gi, ''))}
                         />
@@ -744,9 +750,17 @@ export default function IndexPage() {
                     <Text className="mb-2 block text-xs text-muted-foreground">
                       可自定义命名，之后可在「我的词单」多选合集默写
                     </Text>
-                    <View className="bg-muted rounded-lg px-3 py-2">
+                    <View
+                      style={{
+                        display: 'flex',
+                        width: '100%',
+                        borderRadius: '12px',
+                        backgroundColor: '#f2f2f7',
+                        padding: '0 12px',
+                      }}
+                    >
                       <Input
-                        className="w-full bg-transparent"
+                        style={{ width: '100%', fontSize: '16px', lineHeight: '24px', padding: '12px 0', minHeight: '48px' }}
                         placeholder="给这组词起个名称"
                         value={bankName}
                         onInput={(e) => setBankName(e.detail.value)}
@@ -884,11 +898,8 @@ export default function IndexPage() {
                   </Button>
                 </View>
                 {sampleMode === 'sample' && (
-                  <View className="mt-2 bg-muted rounded-lg px-3 py-2">
-                    <Input
-                      className="w-full bg-transparent"
-                      type="number"
-                      placeholder="抽查条数"
+                  <View style={{ display: "flex", width: "100%", marginTop: "8px", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px" }}>
+                    <Input style={{ width: "100%", fontSize: "16px", lineHeight: "24px", padding: "12px 0", minHeight: "48px" }} type="number" placeholder="抽查条数"
                       value={sampleCount}
                       onInput={(e) => setSampleCount(e.detail.value.replace(/\D/gi, ''))}
                     />
@@ -964,7 +975,7 @@ export default function IndexPage() {
                   )}
                   {feedback.correct && feedback.pointsAwarded > 0 && (
                     <Text className="block text-sm text-emerald-700">
-                      获得 {feedback.pointsAwarded} 积分
+                      获得 {feedback.pointsAwarded} 成长值
                     </Text>
                   )}
                   {feedback.acceptedAlternative && (
@@ -1048,11 +1059,11 @@ export default function IndexPage() {
               <View className="mt-4 flex flex-row items-center justify-center gap-2">
                 <Coins size={20} color="#f59e0b" />
                 <Text className="block text-lg font-semibold text-amber-700">
-                  获得 {sessionEarned} 积分
+                  获得 {sessionEarned} 成长值
                 </Text>
               </View>
               <Text className="mt-2 block text-sm text-muted-foreground">
-                当前累计 {points} 积分
+                当前累计 {points} 成长值
               </Text>
               <Button className="mt-6 w-full" size="lg" onClick={() => startQuiz()}>
                 <RotateCcw size={16} color="#e92e6f" />
@@ -1079,14 +1090,14 @@ export default function IndexPage() {
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="block text-base font-semibold">我的积分</DialogTitle>
+            <DialogTitle className="block text-base font-semibold">我的成长值</DialogTitle>
           </DialogHeader>
           <View className="mt-2 flex flex-col items-center py-2">
             <Text className="block text-3xl font-bold text-amber-600">{points}</Text>
-            <Text className="mt-1 block text-sm text-muted-foreground">当前累计积分</Text>
+            <Text className="mt-1 block text-sm text-muted-foreground">当前累计成长值</Text>
           </View>
           <View className="mt-3 rounded-xl bg-sky-50 p-4">
-            <Text className="block text-sm font-semibold text-sky-900">积分里程碑</Text>
+            <Text className="block text-sm font-semibold text-sky-900">成长值里程碑</Text>
             <Text className="mt-1 block text-xs text-sky-700">
               当前 {Math.min(points, 20000)} / 20000 分
             </Text>
@@ -1121,15 +1132,15 @@ export default function IndexPage() {
             </View>
           </View>
           <View className="mt-3 rounded-xl border border-border p-4">
-            <Text className="mb-1 block text-sm font-semibold">手动修改积分</Text>
+            <Text className="mb-1 block text-sm font-semibold">手动修改成长值</Text>
             <Text className="block text-xs text-muted-foreground">
-              填写目标积分（必填）。总答题/总答对数量留空则保持当前值。
+              填写目标成长值（必填）。总答题/总答对数量留空则保持当前值。
             </Text>
             <View className="mt-2 rounded-xl bg-muted px-3 py-2">
               <Input
                 className="w-full bg-transparent"
                 type="number"
-                placeholder="积分（必填）"
+                placeholder="成长值（必填）"
                 value={setPointsInput}
                 onInput={(e) => setSetPointsInput(e.detail.value)}
               />
@@ -1179,17 +1190,17 @@ export default function IndexPage() {
             <DialogTitle>编辑词条</DialogTitle>
           </DialogHeader>
           <View className="flex flex-col gap-3">
-            <View className="rounded-xl bg-muted px-3 py-1">
+            <View style={{ display: "flex", width: "100%", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px" }}>
               <Input
-                style={{ width: '100%', fontSize: '16px', padding: '10px 0' }}
+                style={{ width: '100%', fontSize: '16px', lineHeight: '24px', padding: '12px 0', minHeight: '48px' }}
                 value={editEn}
                 onInput={(e) => setEditEn(e.detail.value)}
                 placeholder="英文（单词或短语）"
               />
             </View>
-            <View className="rounded-xl bg-muted px-3 py-1">
+            <View style={{ display: "flex", width: "100%", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px" }}>
               <Input
-                style={{ width: '100%', fontSize: '16px', padding: '10px 0' }}
+                style={{ width: '100%', fontSize: '16px', lineHeight: '24px', padding: '12px 0', minHeight: '48px' }}
                 value={editZh}
                 onInput={(e) => setEditZh(e.detail.value)}
                 placeholder="中文释义"
@@ -1221,6 +1232,35 @@ export default function IndexPage() {
             </Button>
             <Button className="mt-2 w-full" onClick={handleSaveEdit}>
               保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>成长值是什么？</DialogTitle>
+          </DialogHeader>
+          <View className="flex flex-col gap-2.5">
+              <Text className="block text-sm leading-relaxed text-foreground">
+                成长值代表你的学习成长，通过每次默写不断累积：
+              </Text>
+              <View className="flex flex-row items-start gap-2">
+                <CircleCheck size={15} color="#188649" />
+                <Text className="block flex-1 text-sm text-foreground">每答对一题，成长值 +10</Text>
+              </View>
+              <View className="flex flex-row items-start gap-2">
+                <CircleX size={15} color="#d11a4d" />
+                <Text className="block flex-1 text-sm text-foreground">答错不会扣成长值</Text>
+              </View>
+              <Text className="block pt-1 text-sm text-muted-foreground">
+                达到对应档位可解锁成就：500 迷你奖 · 2000 小奖 · 5000 普通奖 · 10000 进步奖 · 20000 终极大奖
+              </Text>
+            </View>
+          <DialogFooter className="mt-4">
+            <Button className="w-full" onClick={() => setHelpOpen(false)}>
+              知道了
             </Button>
           </DialogFooter>
         </DialogContent>
