@@ -989,12 +989,30 @@ export default function IndexPage() {
                 </View>
               ) : (
                 <View className="mt-4">
-                  <Input
-                    placeholder={mode === 'zh2en' ? '输入英文单词' : '输入中文意思'}
-                    value={answer}
-                    onInput={(e) => setAnswer(e.detail.value)}
-                    autoFocus
-                  />
+                  <View
+                    style={{
+                      display: 'flex',
+                      width: '100%',
+                      borderRadius: '12px',
+                      backgroundColor: '#f2f2f7',
+                      padding: '2px 14px',
+                      minHeight: '52px',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Input
+                      style={{
+                        width: '100%',
+                        fontSize: '17px',
+                        lineHeight: '24px',
+                        minHeight: '48px',
+                        backgroundColor: 'transparent',
+                      }}
+                      placeholder={mode === 'zh2en' ? '输入英文单词' : '输入中文意思'}
+                      value={answer}
+                      onInput={(e) => setAnswer(e.detail.value)}
+                    />
+                  </View>
                   <Button className="mt-3 w-full" size="lg" onClick={handleSubmit} disabled={!answer.trim() || checking}>
                     <Text>{checking ? '判题中…' : '提交答案'}</Text>
                   </Button>
