@@ -17,7 +17,7 @@ root-portal {
   --card-foreground: #1c1c1e;
   --popover: #ffffff;
   --popover-foreground: #1c1c1e;
-  --primary: #007aff;
+  --primary: #3287fe;
   --primary-foreground: #ffffff;
   --secondary: #e8f1ff;
   --secondary-foreground: #1c1c1e;
@@ -29,7 +29,7 @@ root-portal {
   --destructive-foreground: #ffffff;
   --border: #e5e5e8;
   --input: #e5e5e8;
-  --ring: #007aff;
+  --ring: #3287fe;
   --sidebar: lab(98.26% 0 0);
   --sidebar-foreground: lab(2.75381% 0 0);
   --sidebar-primary: lab(7.78201% -0.0000149012 0);

@@ -577,7 +577,7 @@ export default function IndexPage() {
         <View className="mb-4">
           <Button
             variant="default"
-            className="w-full border-none bg-violet-200 text-violet-900 shadow-none"
+            className="w-full border-none bg-[#db5a6b] text-white shadow-none"
             onClick={openBank}
           >
             <Text>从我的词单开始默写</Text>
@@ -589,25 +589,25 @@ export default function IndexPage() {
       {activeTab === 'home' && (step === 'upload' || step === 'recognizing' || step === 'review') && (
         <View>
           <View
-            className="mb-5 rounded-3xl px-6 py-6 text-white shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #ff5e8a 0%, #e92e6f 55%, #c11a63 100%)' }}
+            className="mb-5 rounded-lg px-6 py-6 text-white shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #e05664 0%, #a878a5 55%, #3287fe 100%)' }}
           >
             <View className="mb-4 flex flex-row items-center justify-between">
               <View>
                 <Text className="block text-lg font-bold text-white">单词听写</Text>
                 <Text className="block text-xs text-white opacity-80">拍图识词 · 随拍随默</Text>
               </View>
-              <View className="rounded-full px-3 py-1" style={{ backgroundColor: 'rgba(255,255,255,0.22)' }}>
+            {/*    <View className="rounded-full px-3 py-1" style={{ backgroundColor: 'rgba(255,255,255,0.22)' }}>
                 <Text className="text-xs font-medium text-white">学习进度</Text>
-              </View>
-            </View>
+              </View> */}
+            </View>  
             <View className="flex flex-row gap-3">
               <View className="flex-1 rounded-2xl bg-white p-4">
-                <Text className="block text-xs text-gray-400">总答题数量</Text>
+                <Text className="block text-xs text-gray-700">总答题数量</Text>
                 <Text className="block text-2xl font-bold text-primary">{totalCount}</Text>
               </View>
               <View className="flex-1 rounded-2xl bg-white p-4">
-                <Text className="block text-xs text-gray-400">总答对数量</Text>
+                <Text className="block text-xs text-gray-700">总答对数量</Text>
                 <Text className="block text-2xl font-bold text-primary">{correctCount}</Text>
               </View>
             </View>
