@@ -732,8 +732,8 @@ export default function IndexPage() {
                       </Button>
                     </View>
                     {sampleMode === 'sample' && (
-                      <View style={{ display: "flex", width: "100%", marginTop: "8px", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px" }}>
-                        <Input style={{ width: "100%", fontSize: "16px", lineHeight: "24px", padding: "12px 0", minHeight: "48px" }} type="number" placeholder="抽查条数"
+                      <View style={{ display: "flex", alignItems: "center", width: "100%", marginTop: "8px", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px", minHeight: "48px", boxSizing: "border-box" }}>
+                        <Input style={{ width: "100%", fontSize: "16px", padding: "0", boxSizing: "border-box" }} type="number" placeholder="抽查条数"
                           value={sampleCount}
                           onInput={(e) => setSampleCount(e.detail.value.replace(/\D/gi, ''))}
                         />
@@ -753,14 +753,17 @@ export default function IndexPage() {
                     <View
                       style={{
                         display: 'flex',
+                        alignItems: 'center',
                         width: '100%',
                         borderRadius: '12px',
                         backgroundColor: '#f2f2f7',
                         padding: '0 12px',
+                        minHeight: '48px',
+                        boxSizing: 'border-box',
                       }}
                     >
                       <Input
-                        style={{ width: '100%', fontSize: '16px', lineHeight: '24px', padding: '12px 0', minHeight: '48px' }}
+                        style={{ width: '100%', fontSize: '16px', padding: '0', boxSizing: 'border-box' }}
                         placeholder="给这组词起个名称"
                         value={bankName}
                         onInput={(e) => setBankName(e.detail.value)}
@@ -899,7 +902,7 @@ export default function IndexPage() {
                 </View>
                 {sampleMode === 'sample' && (
                   <View style={{ display: "flex", width: "100%", marginTop: "8px", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px" }}>
-                    <Input style={{ width: "100%", fontSize: "16px", lineHeight: "24px", padding: "12px 0", minHeight: "48px" }} type="number" placeholder="抽查条数"
+                    <Input style={{ width: "100%", fontSize: "16px", padding: "0", boxSizing: "border-box" }} type="number" placeholder="抽查条数"
                       value={sampleCount}
                       onInput={(e) => setSampleCount(e.detail.value.replace(/\D/gi, ''))}
                     />
@@ -1003,21 +1006,22 @@ export default function IndexPage() {
                   <View
                     style={{
                       display: 'flex',
+                      alignItems: 'center',
                       width: '100%',
                       borderRadius: '12px',
                       backgroundColor: '#f2f2f7',
-                      padding: '2px 14px',
-                      minHeight: '52px',
-                      alignItems: 'center',
+                      padding: '8px 14px',
+                      boxSizing: 'border-box',
                     }}
                   >
                     <Input
                       style={{
+                        flex: 1,
                         width: '100%',
                         fontSize: '17px',
-                        lineHeight: '24px',
-                        minHeight: '48px',
                         backgroundColor: 'transparent',
+                        padding: '0',
+                        boxSizing: 'border-box',
                       }}
                       placeholder={mode === 'zh2en' ? '输入英文单词' : '输入中文意思'}
                       value={answer}
@@ -1188,17 +1192,17 @@ export default function IndexPage() {
             <DialogTitle>编辑词条</DialogTitle>
           </DialogHeader>
           <View className="flex flex-col gap-3">
-            <View style={{ display: "flex", width: "100%", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px" }}>
+            <View style={{ display: "flex", alignItems: "center", width: "100%", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px", minHeight: "48px", boxSizing: "border-box" }}>
               <Input
-                style={{ width: '100%', fontSize: '16px', lineHeight: '24px', padding: '12px 0', minHeight: '48px' }}
+                style={{ width: '100%', fontSize: '16px', padding: '0', boxSizing: 'border-box' }}
                 value={editEn}
                 onInput={(e) => setEditEn(e.detail.value)}
                 placeholder="英文（单词或短语）"
               />
             </View>
-            <View style={{ display: "flex", width: "100%", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px" }}>
+            <View style={{ display: "flex", alignItems: "center", width: "100%", borderRadius: "12px", backgroundColor: "#f2f2f7", padding: "0 12px", minHeight: "48px", boxSizing: "border-box" }}>
               <Input
-                style={{ width: '100%', fontSize: '16px', lineHeight: '24px', padding: '12px 0', minHeight: '48px' }}
+                style={{ width: '100%', fontSize: '16px', padding: '0', boxSizing: 'border-box' }}
                 value={editZh}
                 onInput={(e) => setEditZh(e.detail.value)}
                 placeholder="中文释义"
