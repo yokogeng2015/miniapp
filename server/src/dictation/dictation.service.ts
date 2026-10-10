@@ -51,6 +51,12 @@ function isSingleWord(s: string): boolean {
   return t.length > 0 && !/[\s\u4e00-\u9fa5]/.test(t) && /^[a-zA-Z]+(?:['-][a-zA-Z]+)*$/.test(t);
 }
 
+// 判题用规范化：忽略大小写、全/半角标点、撇号、连字符与空白，仅保留字母数字内容后比较
+// 例如 apple == Apple == apple. == " apple! "；don't == dont
+function normalizeForCompare(s: string): string {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function normalizeWords(p: unknown): WordItem[] {
   const arr = Array.isArray(p)
     ? p
@@ -305,18 +311,19 @@ export class DictationService {
     let acceptedAsAlternative = false;
 
     if (isWordDictation) {
-      const normAns = (answer || '').trim().toLowerCase();
-      const normEn = (en || '').trim().toLowerCase();
-      correct = normAns === normEn;
+      // 忽略大小写、标点、连字符和多余空白进行比较，只要内容正确即可判定正确
+      const normAns = normalizeForCompare(answer);
+      const normEn = normalizeForCompare(en);
+      correct = normAns !== '' && normAns === normEn;
       explanation = correct
-        ? `默写正确 ✅，与题库单词「${en}」一致。`
-        : `这是“单词默写”，答案必须与题库中的单词完全一致（大小写不区分）。标准答案是「${en}」，而你写的是「${(answer || '').trim()}」。`;
+        ? `默写正确 ✅，与题库单词「${en}」一致（忽略标点与大小写差异）。`
+        : `这是“单词默写”，答案必须与题库中的单词内容一致（忽略大小写与标点）。标准答案是「${en}」，而你写的是「${(answer || '').trim()}」。`;
     } else {
-      // 短语/句子中译英，或英译中 → 语义判题，并给出解释
+      // 短语/句子中译英，或英译中 → 语义判题，并给出解释（提示忽略标点差异）
       const prompt =
         mode === 'zh2en'
-          ? `题目要求：根据中文释义写出对应的英文表达（可为单词或常考短语）。\n题目：${zh}\n参考表达：${en}\n用户作答：${answer}\n判断用户作答是否可接受：凡是意思、语法正确且表达自然（包括同义短语、近义说法）均算可接受；若不可接受，请用简短中文解释具体原因（为什么这样说不自然/不正确，以及怎样更接近正确表达）。`
-          : `题目要求：根据英文写出其中文意思。\n题目：${en}\n参考表达：${zh}\n用户作答：${answer}\n判断用户作答是否可接受：意思是正确的中文表达（允许同义换说法）均算可接受；若不可接受，请用简短中文解释具体原因（哪里意思不符，更合适的中文措辞是什么）。`;
+          ? `题目要求：根据中文释义写出对应的英文表达（可为单词或常考短语）。\n题目：${zh}\n参考表达：${en}\n用户作答：${answer}\n判断用户作答是否可接受：凡是意思、语法正确且表达自然（包括同义短语、近义说法）均算可接受；多余的标点、缺失标点、大小写或空格差异均不影响判对。若不可接受，请用简短中文解释具体原因（为什么这样说不自然/不正确，以及怎样更接近正确表达）。`
+          : `题目要求：根据英文写出其中文意思。\n题目：${en}\n参考表达：${zh}\n用户作答：${answer}\n判断用户作答是否可接受：意思是正确的中文表达（允许同义换说法）均算可接受；多余的标点、缺失标点或空格差异均不影响判对。若不可接受，请用简短中文解释具体原因（哪里意思不符，更合适的中文措辞是什么）。`;
       const judge = await this.llmJudge(prompt, customHeaders);
       correct = judge.correct;
       explanation = judge.explanation || '';

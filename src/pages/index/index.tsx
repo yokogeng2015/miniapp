@@ -1028,9 +1028,27 @@ export default function IndexPage() {
                       onInput={(e) => setAnswer(e.detail.value)}
                     />
                   </View>
-                  <Button className="mt-3 w-full" size="lg" onClick={handleSubmit} disabled={!answer.trim() || checking}>
-                    <Text>{checking ? '判题中…' : '提交答案'}</Text>
-                  </Button>
+                  <View className="mt-3 flex flex-row gap-2">
+                    <Button
+                      className="flex-1"
+                      variant="outline"
+                      onClick={() => {
+                        setAnswer('');
+                        setFeedback(null);
+                        nextQuestion();
+                      }}
+                    >
+                      <Text>跳过本题</Text>
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      size="lg"
+                      onClick={handleSubmit}
+                      disabled={!answer.trim() || checking}
+                    >
+                      <Text>{checking ? '判题中…' : '提交答案'}</Text>
+                    </Button>
+                  </View>
                 </View>
               )}
             </CardContent>
