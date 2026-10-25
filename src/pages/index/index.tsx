@@ -244,12 +244,54 @@ export default function IndexPage() {
         setH5RawFile(file);
         setImagePath(URL.createObjectURL(file));
       } else {
-        const res = await Taro.chooseImage({ count: 1, sizeType: ['compressed'] });
-        setImagePath(res.tempFilePaths[0]);
+        // 优先使用新版 chooseMedia（相册/拍照均覆盖，需在小程序后台《隐私保护指引》
+        // 声明「选中的照片或视频信息」「摄像头」），旧基础库回退 chooseImage
+        let tempFilePath = '';
+        const chooseApi =
+          typeof (Taro as unknown as { chooseMedia?: unknown }).chooseMedia === 'function'
+            ? (Taro as unknown as {
+                chooseMedia: (o: Record<string, unknown>) => Promise<{ tempFiles?: { tempFilePath?: string }[] }>;
+              }).chooseMedia
+            : null;
+        if (chooseApi) {
+          const res = await chooseApi({
+            count: 1,
+            mediaType: ['image'],
+            sourceType: ['album', 'camera'],
+            sizeType: ['compressed'],
+          });
+          tempFilePath = res?.tempFiles?.[0]?.tempFilePath ?? '';
+        } else {
+          const res = await Taro.chooseImage({ count: 1, sizeType: ['compressed'], sourceType: ['album', 'camera'] });
+          tempFilePath = res?.tempFilePaths?.[0] ?? '';
+        }
+        if (!tempFilePath) throw new Error('未获取到图片');
+        setImagePath(tempFilePath);
         setH5RawFile(null);
       }
     } catch (e) {
+      const err = e as { errMsg?: string; errno?: number; message?: string };
+      const msg = err?.errMsg || err?.message || '';
+      const errno = err?.errno;
       console.error('choose image cancelled/error', e);
+      // 用户主动取消，不打扰
+      if (/cancel/i.test(msg)) return;
+      // 112：后台《隐私保护指引》未声明相册/摄像头 scope
+      if (errno === 112 || /scope is not declared/i.test(msg)) {
+        Taro.showModal({
+          title: '需要相册/相机权限',
+          content:
+            '该小程序尚未在后台声明「相册（选中的照片或视频信息）」与「摄像头」隐私权限。请在微信公众平台「设置 → 用户隐私保护指引」中补充声明并审核通过后即可使用。',
+          showCancel: false,
+          confirmText: '我知道了',
+        });
+        return;
+      }
+      // 104：用户拒绝了隐私授权
+      if (errno === 104 || /privacy permission is not authorized/i.test(msg)) {
+        Taro.showToast({ title: '需同意隐私授权后才能选择图片', icon: 'none' });
+        return;
+      }
       Taro.showToast({ title: '选择图片失败', icon: 'none' });
     }
   };
