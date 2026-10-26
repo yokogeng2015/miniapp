@@ -237,16 +237,18 @@ export default function IndexPage() {
       }
     });
 
-  const handleChooseImage = async () => {
+  // prefer: 'camera' 直接拍摄 / 'album' 从相册 / 缺省弹系统选择(相册+拍摄)
+  const handleChooseImage = async (prefer?: 'camera' | 'album') => {
     try {
       if (isH5) {
+        // H5 无法直接调起摄像头拍摄，退回文件选择（在支持的环境会弹出拍照选项）
         const file = await pickH5File();
         setH5RawFile(file);
         setImagePath(URL.createObjectURL(file));
       } else {
-        // 优先使用新版 chooseMedia（相册/拍照均覆盖，需在小程序后台《隐私保护指引》
-        // 声明「选中的照片或视频信息」「摄像头」），旧基础库回退 chooseImage
+        // 优先使用新版 chooseMedia（需在后台《隐私保护指引》声明「选中的照片或视频信息」「摄像头」）
         let tempFilePath = '';
+        const sourceType: Array<'album' | 'camera'> = prefer ? [prefer] : ['album', 'camera'];
         const chooseApi =
           typeof (Taro as unknown as { chooseMedia?: unknown }).chooseMedia === 'function'
             ? (Taro as unknown as {
@@ -257,12 +259,12 @@ export default function IndexPage() {
           const res = await chooseApi({
             count: 1,
             mediaType: ['image'],
-            sourceType: ['album', 'camera'],
+            sourceType,
             sizeType: ['compressed'],
           });
           tempFilePath = res?.tempFiles?.[0]?.tempFilePath ?? '';
         } else {
-          const res = await Taro.chooseImage({ count: 1, sizeType: ['compressed'], sourceType: ['album', 'camera'] });
+          const res = await Taro.chooseImage({ count: 1, sizeType: ['compressed'], sourceType });
           tempFilePath = res?.tempFilePaths?.[0] ?? '';
         }
         if (!tempFilePath) throw new Error('未获取到图片');
@@ -672,23 +674,30 @@ export default function IndexPage() {
                   </View>
                 </View>
               ) : (
-                <View
-                  onClick={handleChooseImage}
-                  hoverClass="opacity-80"
-                  className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary bg-muted px-4 py-12"
-                >
-                  <Camera size={40} className="text-primary" color="#e92e6f" />
-                  <Text className="mt-3 block text-sm font-medium">
-                    {imagePath ? '已选择图片，点击可更换' : '点击选择单词图片'}
-                  </Text>
-                  <Text className="mt-1 block text-xs text-muted-foreground">支持 JPG / PNG</Text>
-                  {imagePath ? (
-                    <Image
-                      src={imagePath}
-                      mode="aspectFill"
-                      className="mt-4 h-40 w-40 rounded-xl bg-gray-200"
-                    />
-                  ) : null}
+                <View>
+                  <View
+                    onClick={() => handleChooseImage('camera')}
+                    hoverClass="opacity-80"
+                    className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-primary bg-muted px-4 py-10"
+                  >
+                    <Camera size={40} className="text-primary" color="#e92e6f" />
+                    <Text className="mt-3 block text-sm font-medium">点击拍照拍摄单词图片</Text>
+                    <Text className="mt-1 block text-xs text-muted-foreground">支持 JPG / PNG</Text>
+                    {imagePath ? (
+                      <Image
+                        src={imagePath}
+                        mode="aspectFill"
+                        className="mt-4 h-40 w-40 rounded-xl bg-gray-200"
+                      />
+                    ) : null}
+                  </View>
+                  <Button
+                    className="mt-3 w-full"
+                    variant="outline"
+                    onClick={() => handleChooseImage('album')}
+                  >
+                    <Text>从相册选择图片</Text>
+                  </Button>
                 </View>
               )}
 
@@ -822,9 +831,18 @@ export default function IndexPage() {
 
           <View className="mt-5">
             {step === 'upload' && !imagePath && (
-              <Button className="w-full" size="lg" onClick={handleChooseImage}>
-                选择图片
-              </Button>
+              <>
+                <Button className="w-full" size="lg" onClick={() => handleChooseImage('camera')}>
+                  <Text>拍照识别单词</Text>
+                </Button>
+                <Button
+                  className="mt-3 w-full"
+                  variant="outline"
+                  onClick={() => handleChooseImage('album')}
+                >
+                  <Text>从相册选择图片</Text>
+                </Button>
+              </>
             )}
             {step === 'upload' && imagePath && (
               <>
@@ -834,9 +852,16 @@ export default function IndexPage() {
                 <Button
                   className="mt-3 w-full"
                   variant="outline"
-                  onClick={handleChooseImage}
+                  onClick={() => handleChooseImage('camera')}
                 >
-                  重新选择图片
+                  重新拍照
+                </Button>
+                <Button
+                  className="mt-3 w-full"
+                  variant="ghost"
+                  onClick={() => handleChooseImage('album')}
+                >
+                  从相册重新选择
                 </Button>
               </>
             )}
