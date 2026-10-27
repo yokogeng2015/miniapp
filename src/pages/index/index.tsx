@@ -130,6 +130,7 @@ export default function IndexPage() {
     pointsAwarded: number;
   } | null>(null);
   const [checking, setChecking] = useState(false);
+  const [photoChecking, setPhotoChecking] = useState(false);
 
   const [points, setPoints] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -569,6 +570,135 @@ export default function IndexPage() {
       Taro.showToast({ title: '提交失败，请重试', icon: 'none' });
     } finally {
       setChecking(false);
+    }
+  };
+
+  // 拍照判题：拍摄/选择手写答案图片，上传后端识别文本并判对错
+  const handlePhotoCheck = async (prefer?: 'camera' | 'album') => {
+    if (!currentWord || photoChecking || checking) return;
+    try {
+      let tempFilePath = '';
+      let h5File: File | null = null;
+      if (isH5) {
+        h5File = await pickH5File();
+        tempFilePath = URL.createObjectURL(h5File);
+      } else {
+        const sourceType: Array<'album' | 'camera'> = prefer ? [prefer] : ['album', 'camera'];
+        const chooseApi =
+          typeof (Taro as unknown as { chooseMedia?: unknown }).chooseMedia === 'function'
+            ? (Taro as unknown as {
+                chooseMedia: (o: Record<string, unknown>) => Promise<{ tempFiles?: { tempFilePath?: string }[] }>;
+              }).chooseMedia
+            : null;
+        if (chooseApi) {
+          const res = await chooseApi({
+            count: 1,
+            mediaType: ['image'],
+            sourceType,
+            sizeType: ['compressed'],
+          });
+          tempFilePath = res?.tempFiles?.[0]?.tempFilePath ?? '';
+        } else {
+          const res = await Taro.chooseImage({ count: 1, sizeType: ['compressed'], sourceType });
+          tempFilePath = res?.tempFilePaths?.[0] ?? '';
+        }
+      }
+      if (!tempFilePath) return;
+      setPhotoChecking(true);
+      setFeedback(null);
+      const formArgs = { deviceId, mode, en: currentWord.en, zh: currentWord.zh };
+      let d:
+        | {
+            correct: boolean;
+            reference: string;
+            explanation: string;
+            acceptedAlternative: boolean;
+            pointsAwarded: number;
+            totalPoints: number;
+            recognized: string;
+          }
+        | undefined;
+      if (isH5 && h5File) {
+        const fd = new FormData();
+        fd.append('file', h5File, h5File.name || 'handwrite.jpg');
+        fd.append('deviceId', formArgs.deviceId);
+        fd.append('mode', formArgs.mode);
+        fd.append('en', formArgs.en);
+        fd.append('zh', formArgs.zh);
+        const resp = await fetch(`${PROJECT_DOMAIN}/api/dictation/check/photo`, {
+          method: 'POST',
+          body: fd,
+        });
+        const body = (await resp.json()) as ApiEnvelope<typeof d>;
+        d = body?.data;
+        if (!d) throw new Error(body?.message || '拍照判题失败');
+      } else {
+        const res = await Network.uploadFile({
+          url: '/api/dictation/check/photo',
+          filePath: tempFilePath,
+          name: 'file',
+          formData: formArgs,
+        });
+        console.log('photo check body:', res.data);
+        // 小程序端 Taro.uploadFile 的 res.data 是 JSON 字符串，需兼容解析
+        let parsed: unknown = res.data;
+        if (typeof res.data === 'string') {
+          try {
+            parsed = JSON.parse(res.data);
+          } catch {
+            parsed = res.data;
+          }
+        }
+        const arr = (Array.isArray(parsed) ? parsed : [parsed]) as unknown[];
+        const first = arr.find((o) => o && typeof o === 'object') as unknown;
+        d = (first as unknown as ApiEnvelope<typeof d>)?.data ?? (parsed as unknown as ApiEnvelope<typeof d>)?.data;
+        if (!d) throw new Error('拍照判题失败');
+      }
+      setFeedback({
+        correct: !!d.correct,
+        reference: d.reference ?? '',
+        explanation: d.explanation ?? '',
+        acceptedAlternative: !!d.acceptedAlternative,
+        pointsAwarded: d.pointsAwarded ?? 0,
+      });
+      if (d.correct) {
+        setSessionCorrect((c) => c + 1);
+        setSessionEarned((e) => e + (d.pointsAwarded ?? 0));
+      }
+      if (typeof d.totalPoints === 'number') setPoints(d.totalPoints);
+      else refreshPoints();
+      setTimeout(
+        () => {
+          try {
+            if (isH5) {
+              (document as unknown as { getElementById: (id: string) => Element | null }).getElementById('answer-feedback')?.scrollIntoView?.({
+                behavior: 'smooth',
+                block: 'center',
+              });
+            }
+          } catch {}
+        },
+        120
+      );
+    } catch (e) {
+      const err = e as { errMsg?: string; errno?: number; message?: string };
+      const msg = err?.errMsg || err?.message || '';
+      const errno = err?.errno;
+      console.error('photo check error', e);
+      if (/cancel/i.test(msg)) return;
+      if (errno === 112 || /scope is not declared/i.test(msg)) {
+        Taro.showModal({
+          title: '需要相册/相机权限',
+          content:
+            '该小程序尚未在后台声明「相册」与「摄像头」隐私权限。请在微信公众平台「设置 → 用户隐私保护指引」中补充声明并审核通过后即可使用。',
+          showCancel: false,
+          confirmText: '我知道了',
+        });
+        return;
+      }
+      Taro.showToast({ title: err?.message?.includes('识别') ? err.message : '拍照判题失败', icon: 'none' });
+    } finally {
+      setPhotoChecking(false);
     }
   };
 
@@ -1094,7 +1224,37 @@ export default function IndexPage() {
                       value={answer}
                       onInput={(e) => setAnswer(e.detail.value)}
                     />
+                    <View
+                      style={{
+                        marginLeft: '10px',
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Button
+                        variant="ghost"
+                        style={{ padding: '6px' }}
+                        disabled={photoChecking || checking}
+                        onClick={() => {
+                          Taro.showActionSheet({
+                            itemList: ['拍照识别', '从相册选择'],
+                            success: (r) => {
+                              if (r.tapIndex === 0) handlePhotoCheck('camera');
+                              else if (r.tapIndex === 1) handlePhotoCheck('album');
+                            },
+                            fail: () => {},
+                          });
+                        }}
+                      >
+                        <Camera size={20} color="#e92e6f" />
+                      </Button>
+                    </View>
                   </View>
+                  <Text className="mt-2 block text-xs text-muted-foreground">
+                    {photoChecking ? '正在识别手写答案…' : '可手写答案拍照判题，或用上方相机拍摄'}
+                  </Text>
                   <View className="mt-3 flex flex-row gap-2">
                     <Button
                       className="flex-1"
