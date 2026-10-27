@@ -85,6 +85,29 @@ export class DictationController {
     return { status: 'success', data };
   }
 
+  @Post('check-image')
+  @HttpCode(200)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async checkImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { deviceId?: string; mode?: 'zh2en' | 'en2zh'; en?: string; zh?: string },
+    @Req() req: Request,
+  ) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('请上传作答照片');
+    }
+    const customHeaders = HeaderUtils.extractForwardHeaders(
+      req.headers as unknown as Record<string, string>,
+    );
+    const data = await this.dictationService.checkImage(file, body, customHeaders);
+    return { status: 'success', data };
+  }
+
   @Post('wordlists/save')
   @HttpCode(200)
   async saveWordlist(

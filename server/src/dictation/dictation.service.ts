@@ -347,6 +347,60 @@ export class DictationService {
     };
   }
 
+  // 拍照判题：上传手写/打印答案照片，先用多模态 LLM 识别图中文字，再复用 checkAnswer 判定对错
+  async checkImage(
+    file: Express.Multer.File,
+    body: { deviceId?: string; mode?: 'zh2en' | 'en2zh'; en?: string; zh?: string },
+    customHeaders: Record<string, string>,
+  ): Promise<CheckResult & { recognizedText: string }> {
+    if (!file?.buffer) throw new BadRequestException('请上传作答照片');
+    const { deviceId, mode, en, zh } = body;
+    if (!deviceId) throw new BadRequestException('缺少设备标识 deviceId');
+    if (!['zh2en', 'en2zh'].includes(mode ?? '')) throw new BadRequestException('mode 仅支持 zh2en 或 en2zh');
+    if (!en || !zh) throw new BadRequestException('单词数据缺失');
+
+    const { url } = await this.storageService.uploadImage(file.buffer, file.originalname, file.mimetype);
+    const client = this.createClient(customHeaders);
+
+    const recognizePrompt =
+      '请识别这张图片中用户写下的【答案文字】并原样返回。' +
+      '只要写出的英文、中文单词/短语/短句，忽略箭头、圈注、页码等无关内容。' +
+      (mode === 'zh2en'
+        ? '目标是英文表达。'
+        : '目标是中文意思。') +
+      '只输出识别到的文字内容本身，不要输出 JSON、不要加任何解释或引号。若没有识别到有效文字输出空字符串。';
+
+    let recognizedText = '';
+    for (let attempt = 0; attempt < 2 && !recognizedText; attempt++) {
+      const messages: LLMMessage[] = [
+        { role: 'system', content: recognizePrompt },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: '识别这张图片中的答案文字。' },
+            { type: 'image_url', image_url: { url, detail: 'high' } },
+          ],
+        },
+      ];
+      const resp = await client.invoke(messages, { model: OCR_MODEL, temperature: 0.1 });
+      const raw = typeof resp.content === 'string' ? resp.content : JSON.stringify(resp.content ?? '');
+      recognizedText = (raw || '')
+        .replace(/```/g, '')
+        .replace(/["']/g, '')
+        .trim();
+    }
+
+    if (!recognizedText) {
+      throw new BadRequestException('未能识别出图片中的作答内容，请重新拍摄更清晰的答案');
+    }
+
+    const result = await this.checkAnswer(
+      { deviceId, mode: mode as 'zh2en' | 'en2zh', en, zh, answer: recognizedText },
+      customHeaders,
+    );
+    return { ...result, recognizedText };
+  }
+
   private async llmJudge(
     prompt: string,
     customHeaders: Record<string, string>,

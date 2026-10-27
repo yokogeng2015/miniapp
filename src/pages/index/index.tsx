@@ -128,8 +128,10 @@ export default function IndexPage() {
     explanation: string;
     acceptedAlternative?: boolean;
     pointsAwarded: number;
+    recognizedText?: string;
   } | null>(null);
   const [checking, setChecking] = useState(false);
+  const [checkingPhoto, setCheckingPhoto] = useState(false);
 
   const [points, setPoints] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -570,6 +572,123 @@ export default function IndexPage() {
     } finally {
       setChecking(false);
     }
+  };
+
+  const handlePhotoSubmit = async () => {
+    if (!currentWord || checking || checkingPhoto) return;
+    setCheckingPhoto(true);
+    try {
+      // 小程序端：直接调起相机拍照，然后上传判题
+      if (!isH5) {
+        let tempFilePath = '';
+        // 直接调用 Taro.chooseMedia / chooseImage 拍照
+        try {
+          if (typeof (Taro as unknown as { chooseMedia?: unknown }).chooseMedia === 'function') {
+            const r = await (Taro as unknown as {
+              chooseMedia: (o: Record<string, unknown>) => Promise<any>;
+            }).chooseMedia({ count: 1, mediaType: ['image'], sourceType: ['camera'] });
+            tempFilePath = r?.tempFiles?.[0]?.tempFilePath ?? '';
+          } else {
+            const r = await Taro.chooseImage({ count: 1, sizeType: ['compressed'], sourceType: ['camera'] });
+            tempFilePath = r?.tempFilePaths?.[0] ?? '';
+          }
+        } catch (e) {
+          const err = (e as { errno?: number; errMsg?: string });
+          // 用户取消拍摄
+          if (err?.errMsg?.includes('cancel') || err?.errno === 122) return;
+          throw e;
+        }
+        if (!tempFilePath) return;
+        const res = await Network.uploadFile({
+          url: '/api/dictation/check-image',
+          filePath: tempFilePath,
+          name: 'file',
+          formData: {
+            deviceId,
+            mode,
+            en: currentWord.en,
+            zh: currentWord.zh,
+          },
+        });
+        applyPhotoFeedback(res.data);
+        return;
+      }
+
+      // H5 端：原生文件选择（拍照或选图），手动 FormData 上传
+      const file = await new Promise<File | null>((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = () => resolve(input.files?.[0] ?? null);
+        input.oncancel = () => resolve(null);
+        input.click();
+      });
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file, file.name || 'answer.jpg');
+      fd.append('deviceId', deviceId);
+      fd.append('mode', mode);
+      fd.append('en', currentWord.en);
+      fd.append('zh', currentWord.zh);
+      const resp = await fetch(`${PROJECT_DOMAIN}/api/dictation/check-image`, { method: 'POST', body: fd });
+      const body = await resp.json();
+      applyPhotoFeedback(body);
+    } catch (e) {
+      console.error('photo check error', e);
+      Taro.showToast({ title: '拍照判题失败，请重试', icon: 'none' });
+    } finally {
+      setCheckingPhoto(false);
+    }
+  };
+
+  // 解析拍照判题响应并刷新反馈区
+  const applyPhotoFeedback = (raw: unknown) => {
+    const parsed =
+      typeof raw === 'string'
+        ? (JSON.parse(raw) as ApiEnvelope<{
+            correct: boolean;
+            reference: string;
+            explanation: string;
+            acceptedAlternative?: boolean;
+            pointsAwarded: number;
+            totalPoints: number;
+            recognizedText: string;
+          }>)
+        : (raw as ApiEnvelope<{
+            correct: boolean;
+            reference: string;
+            explanation: string;
+            acceptedAlternative?: boolean;
+            pointsAwarded: number;
+            totalPoints: number;
+            recognizedText: string;
+          }>);
+    const d = parsed?.data;
+    if (!d) throw new Error('empty response');
+    setFeedback({
+      correct: !!d.correct,
+      reference: d.reference ?? '',
+      explanation: d.explanation ?? '',
+      acceptedAlternative: !!d.acceptedAlternative,
+      pointsAwarded: d.pointsAwarded ?? 0,
+      recognizedText: d.recognizedText,
+    });
+    if (d.correct) {
+      setSessionCorrect((c) => c + 1);
+      setSessionEarned((e) => e + (d.pointsAwarded ?? 0));
+    }
+    if (typeof d.totalPoints === 'number') setPoints(d.totalPoints);
+    else refreshPoints();
+    setTimeout(() => {
+      try {
+        if (isH5) {
+          (document as unknown as { getElementById: (id: string) => Element | null }).getElementById('answer-feedback')?.scrollIntoView?.({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        }
+      } catch {}
+    }, 120);
   };
 
   const nextQuestion = () => {
@@ -1043,6 +1162,17 @@ export default function IndexPage() {
                   {!feedback.correct && (
                     <Text className="block text-sm text-red-600">参考答案：{feedback.reference}</Text>
                   )}
+                  {feedback.recognizedText && (
+                    <Text
+                      className={
+                        feedback.correct
+                          ? 'mt-1 block text-xs text-emerald-700'
+                          : 'mt-1 block text-xs text-orange-700'
+                      }
+                    >
+                      拍照识别到：「{feedback.recognizedText}」
+                    </Text>
+                  )}
                   {feedback.correct && feedback.pointsAwarded > 0 && (
                     <Text className="block text-sm text-emerald-700">
                       获得 {feedback.pointsAwarded} 成长值
@@ -1094,6 +1224,19 @@ export default function IndexPage() {
                       value={answer}
                       onInput={(e) => setAnswer(e.detail.value)}
                     />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-2 flex-shrink-0"
+                      disabled={checking || checkingPhoto}
+                      onClick={handlePhotoSubmit}
+                      aria-label="拍照判题"
+                    >
+                      <Camera size={20} color="#e92e6f" />
+                      <Text className="ml-1 text-xs text-pink-600">
+                        {checkingPhoto ? '识别中…' : '拍照'}
+                      </Text>
+                    </Button>
                   </View>
                   <View className="mt-3 flex flex-row gap-2">
                     <Button
