@@ -49,44 +49,6 @@ export class DictationController {
     return { status: 'success', data: result };
   }
 
-  // 拍照判题：上传手写答案图片，后端识别文本后复用 checkAnswer 判定对错
-  @Post('check/photo')
-  @HttpCode(200)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024 },
-    }),
-  )
-  async checkPhoto(
-    @UploadedFile() file: Express.Multer.File,
-    @Req() req: Request,
-  ) {
-    const body = req.body as {
-      deviceId?: string;
-      mode?: 'zh2en' | 'en2zh';
-      en?: string;
-      zh?: string;
-    };
-    if (!file || !file.buffer) {
-      throw new BadRequestException('请上传图片文件');
-    }
-    const customHeaders = HeaderUtils.extractForwardHeaders(
-      req.headers as unknown as Record<string, string>,
-    );
-    const result = await this.dictationService.checkPhoto(
-      file,
-      {
-        deviceId: body?.deviceId ?? '',
-        mode: body?.mode === 'en2zh' ? 'en2zh' : 'zh2en',
-        en: body?.en ?? '',
-        zh: body?.zh ?? '',
-      },
-      customHeaders,
-    );
-    return { status: 'success', data: result };
-  }
-
   @Get('points')
   @HttpCode(200)
   async points() {

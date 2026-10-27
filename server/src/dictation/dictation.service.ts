@@ -347,44 +347,6 @@ export class DictationService {
     };
   }
 
-  async checkPhoto(
-    file: Express.Multer.File,
-    body: { deviceId: string; mode: 'zh2en' | 'en2zh'; en: string; zh: string },
-    customHeaders: Record<string, string>,
-  ): Promise<CheckResult & { recognized: string }> {
-    const { url } = await this.storageService.uploadImage(file.buffer, file.originalname, file.mimetype);
-    const client = this.createClient(customHeaders);
-
-    // 识别手写/印刷答案文本（可能是英文单词/短语，或英译中时是中文）
-    const prompt =
-      body.mode === 'en2zh'
-        ? '图片中是手写的、针对一个英文单词的中文答案。请准确识别图片中的中文内容（可能是一个或多个汉字词/短语）。只返回识别到的原文，去掉多余空白，不要任何解释。'
-        : '图片中是手写的、针对一个中文释义的英文答案（可能是一个英文单词或短语）。请准确识别图片中的英文内容，注意手写字母（a/e/o、l/i、b/d、g/q 等易混淆）。只返回识别到的英文原文，去掉标点和多于空白，不要任何解释。';
-    const messages: LLMMessage[] = [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url, detail: 'high' } },
-        ],
-      },
-    ];
-    let recognized = '';
-    for (let attempt = 0; attempt < 2 && !recognized; attempt++) {
-      const resp = await client.invoke(messages, { model: OCR_MODEL, temperature: 0.1 });
-      recognized = String(resp.content || '').trim();
-    }
-    if (!recognized) {
-      throw new BadRequestException('未能识别出手写答案，请拍摄更清晰的字迹后重试');
-    }
-
-    const result = await this.checkAnswer(
-      { deviceId: body.deviceId, mode: body.mode, en: body.en, zh: body.zh, answer: recognized },
-      customHeaders,
-    );
-    return { ...result, recognized };
-  }
-
   private async llmJudge(
     prompt: string,
     customHeaders: Record<string, string>,
